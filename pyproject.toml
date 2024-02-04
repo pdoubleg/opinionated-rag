@@ -1,0 +1,36 @@
+[tool.poetry]
+name = "legal-tech-project"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <you@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+streamlit = "*"
+openai = "^1.0.0"
+pydantic = "^2.0.0"
+lancedb = "*"
+sentence-transformers = "^2.2.2"
+python-dotenv = "*"
+instructor = "*"
+tiktoken = "*"
+eyecite = "*"
+citeurl = "*"
+tantivy = "^0.21.0"
+requests = "^2.31.0"
+black = {extras = ["jupyter"], version = "^23.3.0"}
+backoff = "^2.2.1"
+html2text = "^2020.1.16"
+datamodel-code-generator = "^0.25.3"
+devtools = "^0.12.2"
+spacy = "^3.7.2"
+thefuzz = "^0.22.1"
+suffix-trees = "^0.3.0"
+tabulate = "^0.9.0"
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^6.29.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
