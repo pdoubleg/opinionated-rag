@@ -20,7 +20,7 @@ class Splitter(str, Enum):
 
 class PdfParsingConfig(BaseSettings):
     library: Literal[
-        "fitz", "pdfplumber", "pypdf", "unstructured", "haystack"
+        "fitz", "pdfplumber", "pypdf", "unstructured",
     ] = "pdfplumber"
 
 
@@ -33,7 +33,7 @@ class DocParsingConfig(BaseSettings):
 
 
 class ParsingConfig(BaseSettings):
-    splitter: str = Splitter.TOKENS
+    splitter: str = Splitter.PARA_SENTENCE
     chunk_size: int = 200  # aim for this many tokens per chunk
     overlap: int = 50  # overlap between chunks
     max_chunks: int = 10_000
@@ -101,7 +101,7 @@ class Parser:
             chunks = remove_extra_whitespace(d.content).split(self.config.separators[0])
             chunk_docs = [
                 Document(
-                    content=c, metadata=d.metadata.copy(update=dict(is_chunk=True))
+                    content=c, metadata=d.metadata.model_copy(update=dict(is_chunk=True))
                 )
                 for c in chunks
                 if c.strip() != ""
@@ -149,7 +149,7 @@ class Parser:
             chunks = create_chunks(d.content, self.config.chunk_size, self.num_tokens)
             chunk_docs = [
                 Document(
-                    content=c, metadata=d.metadata.copy(update=dict(is_chunk=True))
+                    content=c, metadata=d.metadata.model_copy (update=dict(is_chunk=True))
                 )
                 for c in chunks
                 if c.strip() != ""
@@ -164,7 +164,7 @@ class Parser:
             chunks = self.chunk_tokens(d.content)
             chunk_docs = [
                 Document(
-                    content=c, metadata=d.metadata.copy(update=dict(is_chunk=True))
+                    content=c, metadata=d.metadata.model_copy (update=dict(is_chunk=True))
                 )
                 for c in chunks
                 if c.strip() != ""

@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class VectorStoreConfig(BaseSettings):
     collection_name: str | None = "temp"
     replace_collection: bool = False  # replace collection if it already exists
-    storage_path: str = ".qdrant/data"
+    storage_path: str = ".lancedb/data"
     batch_size: int = 200
     embedding: EmbeddingModelsConfig = OpenAIEmbeddingsConfig(
         model_type="openai",
@@ -125,7 +125,7 @@ class VectorStore(ABC):
         # DocChatAgent retrieval, so we use the ids to get the full docs
         ids = [str(doc.id()) for doc in docs]
         docs = self.get_documents_by_ids(ids)
-        dicts = [doc.dict() for doc in docs]
+        dicts = [doc.model_dump() for doc in docs]
         df = pd.DataFrame(dicts)
 
         try:

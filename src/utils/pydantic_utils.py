@@ -109,28 +109,28 @@ def flatten_pydantic_model(
         current_model, current_prefix = models_to_process.pop()
 
         for name, field in current_model.model_fields.items():
-            if isinstance(field.outer_type_, type) and issubclass(
-                field.outer_type_, BaseModel
+            if isinstance(field.annotation, type) and issubclass(
+                field.annotation, BaseModel
             ):
                 new_prefix = (
                     f"{current_prefix}{name}__" if current_prefix else f"{name}__"
                 )
-                models_to_process.append((field.outer_type_, new_prefix))
+                models_to_process.append((field.annotation, new_prefix))
             else:
                 flattened_name = f"{current_prefix}{name}"
 
                 if field.default_factory is not field.default_factory:
                     flattened_fields[flattened_name] = (
-                        field.outer_type_,
+                        field.annotation,
                         field.default_factory,
                     )
                 elif field.default is not field.default:
                     flattened_fields[flattened_name] = (
-                        field.outer_type_,
+                        field.annotation,
                         field.default,
                     )
                 else:
-                    flattened_fields[flattened_name] = (field.outer_type_, ...)
+                    flattened_fields[flattened_name] = (field.annotation, ...)
 
     return create_model("FlatModel", __base__=base_model, **flattened_fields)
 
@@ -286,8 +286,8 @@ def clean_schema(model: Type[BaseModel], excludes: List[str] = []) -> Dict[str, 
         if field_name in excludes:
             continue
 
-        field_type = field_info.outer_type_
-        description = field_info.field_info.description or ""
+        field_type = field_info.annotation
+        description = field_info.description or ""
 
         # Handle generic types like List[...]
         if get_origin(field_type):
@@ -388,6 +388,50 @@ def first_non_null(series: pd.Series) -> Any | None:
         if item is not None:
             return item
     return None
+
+def document_compatible_dataframe(
+    df: pd.DataFrame,
+    content: str = "content",
+    metadata: List[str] = [],
+) -> Tuple[pd.DataFrame, List[str]]:
+    """
+    Convert dataframe so it is compatible with Document class:
+    - has "content" column
+    - has an "id" column to be used as Document.metadata.id
+
+    Args:
+        df: dataframe to convert
+        content: name of content column
+        metadata: list of metadata column names
+
+    Returns:
+        Tuple[pd.DataFrame, List[str]]: dataframe, metadata
+            - dataframe: dataframe with "content" column and "id" column
+            - metadata: list of metadata column names, including "id"
+    """
+    if content not in df.columns:
+        raise ValueError(
+            f"""
+            Content column {content} not in dataframe, 
+            Please specify the `content` parameter as a
+            text-based column in the dataframe.
+            """
+        )
+    if content != "content":
+        # rename content column to "content", leave existing column intact
+        df = df.rename(columns={content: "content"}, inplace=False)
+
+    actual_metadata = metadata.copy()
+    if "id" not in df.columns:
+        docs = dataframe_to_documents(df, content="content", metadata=metadata)
+        ids = [str(d.id()) for d in docs]
+        df["id"] = ids
+
+    if "id" not in actual_metadata:
+        actual_metadata += ["id"]
+
+    return df, actual_metadata
+
 
 
 def dataframe_to_document_model(

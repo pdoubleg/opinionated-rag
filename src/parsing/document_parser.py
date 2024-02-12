@@ -301,52 +301,6 @@ class PDFPlumberParser(DocumentParser):
         return self.fix_text(page.extract_text())
 
 
-class HaystackPDFParser(DocumentParser):
-    """
-    Parser for processing PDFs using the `haystack` library.
-    """
-
-    def get_doc_chunks(self) -> List[Document]:
-        """
-        Overrides the base class method to use the `haystack` library.
-        See there for more details.
-        """
-
-        from haystack.nodes import PDFToTextConverter, PreProcessor
-
-        converter = PDFToTextConverter(
-            remove_numeric_tables=True,
-        )
-        path = self.source
-        if path.startswith(("http://", "https://")):
-            path = url_to_tempfile(path)
-        doc = converter.convert(file_path=path, meta=None)
-        # note self.config.chunk_size is in token units,
-        # and we use an approximation of 75 words per 100 tokens
-        # to convert to word units
-        preprocessor = PreProcessor(
-            clean_empty_lines=True,
-            clean_whitespace=True,
-            clean_header_footer=False,
-            split_by="word",
-            split_length=int(0.75 * self.config.chunk_size),
-            split_overlap=int(0.75 * self.config.overlap),
-            split_respect_sentence_boundary=True,
-            add_page_number=True,
-        )
-        chunks = preprocessor.process(doc)
-        return [
-            Document(
-                content=chunk.content,
-                metadata=DocMetaData(
-                    source=f"{self.source} page {chunk.meta['page']}",
-                    is_chunk=True,
-                ),
-            )
-            for chunk in chunks
-        ]
-
-
 class UnstructuredPDFParser(DocumentParser):
     """
     Parser for processing PDF files using the `unstructured` library.

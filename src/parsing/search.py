@@ -6,6 +6,7 @@ large schema).
 """
 
 import difflib
+import pandas as pd
 from typing import List, Tuple
 
 from nltk.corpus import stopwords
@@ -260,3 +261,52 @@ def eliminate_near_duplicates(passages: List[str], threshold: float = 0.8) -> Li
             unique_idxs.add(idx)
 
     return [passages[idx] for idx in unique_idxs]
+
+
+def eliminate_near_duplicates_df(df: pd.DataFrame, column: str, threshold: float = 0.9) -> pd.DataFrame:
+    """
+    Eliminate near duplicate text passages from a given DataFrame column using MinHash and LSH.
+
+    Args:
+        df (pd.DataFrame): DataFrame containing the text passages.
+        column (str): The column of the DataFrame containing the text passages.
+        threshold (float, optional): Jaccard similarity threshold to consider two
+                                     passages as near-duplicates. Default is 0.9.
+
+    Returns:
+        pd.DataFrame: DataFrame after eliminating near duplicates in the specified column.
+    """
+    
+    from datasketch import MinHash, MinHashLSH
+    
+    # Create LSH index
+    lsh = MinHashLSH(threshold=threshold, num_perm=128)
+
+    # Create MinHash objects for each passage and insert to LSH
+    minhashes = {}
+    for idx, passage in df[column].items():
+        m = MinHash(num_perm=128)
+        for word in str(passage).split():
+            m.update(word.encode("utf-8"))
+        lsh.insert(idx, m)
+        minhashes[idx] = m
+
+    unique_idxs = set()
+    for idx in minhashes.keys():
+        # Query for similar passages (including itself)
+        result = lsh.query(minhashes[idx])
+
+        # If only the passage itself is returned, it's unique
+        if len(result) == 1 and idx in result:
+            unique_idxs.add(idx)
+
+    return df.loc[list(unique_idxs)]
+
+
+def deduplicate(seq: list[str]) -> list[str]:
+    """
+    Source: https://stackoverflow.com/a/480227/1493011
+    """
+
+    seen = set()
+    return [x for x in seq if not (x in seen or seen.add(x))]

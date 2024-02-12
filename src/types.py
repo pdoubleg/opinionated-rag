@@ -36,7 +36,7 @@ class DocMetaData(BaseModel):
         downstream libraries,  e.g. Chroma which complains about bool fields in
         metadata.
         """
-        original_dict = super().dict(*args, **kwargs)
+        original_dict = super().model_dump(*args, **kwargs)
 
         for key, value in original_dict.items():
             if isinstance(value, bool):
@@ -57,19 +57,14 @@ class Document(BaseModel):
     def hash_id(doc: str) -> str:
         # Encode the document as UTF-8
         doc_utf8 = str(doc).encode("utf-8")
-
         # Create a SHA256 hash object
         sha256_hash = hashlib.sha256()
-
         # Update the hash object with the bytes of the document
         sha256_hash.update(doc_utf8)
-
         # Get the hexadecimal representation of the hash
         hash_hex = sha256_hash.hexdigest()
-
         # Convert the first part of the hash to a UUID
         hash_uuid = uuid.UUID(hash_hex[:32])
-
         return str(hash_uuid)
 
     def _unique_hash_id(self) -> str:
@@ -87,5 +82,5 @@ class Document(BaseModel):
 
     def __str__(self) -> str:
         # TODO: make metadata a pydantic model to enforce "source"
-        self.metadata.json()
-        return f"{self.content} {self.metadata.json()}"
+        self.metadata.model_dump_json()
+        return f"{self.content} {self.metadata.model_dump_json()}"

@@ -1,9 +1,10 @@
 import copy
 import os
 from contextlib import contextmanager
-from typing import Iterator, List, Literal
+from typing import Iterator, List, Literal, Optional
 
 from dotenv import find_dotenv, load_dotenv
+from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 
 
@@ -11,18 +12,20 @@ class Settings(BaseSettings):
     # NOTE all of these can be overridden in your .env file with upper-case names,
     # for example CACHE_TYPE=momento
     debug: bool = False  # show debug messages?
-    progress: bool = False  # show progress spinners/bars?
+    progress: bool = True  # show progress spinners/bars?
     stream: bool = True  # stream output?
     cache: bool = True  # use cache?
-    cache_type: Literal["redis", "fakeredis", "momento"] = "fakeredis"
-    interactive: bool = True  # interactive mode?
+    cache_type: Literal["redis", "fakeredis"] = "fakeredis"
+    interactive: bool = False  # interactive mode?
     gpt3_5: bool = True  # use GPT-3.5?
-    chat_model: str = ""  # language model name, e.g. litellm/ollama/llama2
+    model: str = ""  # language model name
+    chat_model: Optional[str] = ""
     quiet: bool = False  # quiet mode (i.e. suppress all output)?
     notebook: bool = False  # running in a notebook?
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(
+        extra="allow",
+    )
 
 
 load_dotenv(find_dotenv(usecwd=True))  # get settings from .env file
@@ -93,6 +96,6 @@ def set_env(settings: BaseSettings) -> None:
         settings (BaseSettings): desired settings
     Returns:
     """
-    for field_name, field in settings.__class__.__fields__.items():
+    for field_name, field in settings.__class__.model_fields.items():
         env_var_name = field.field_info.extra.get("env", field_name).upper()
         os.environ[env_var_name] = str(settings.dict()[field_name])

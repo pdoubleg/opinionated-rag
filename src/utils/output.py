@@ -1,13 +1,71 @@
 import logging
+import os
 import sys
+from datetime import datetime
+import pandas as pd
 from contextlib import contextmanager
 from typing import Any, Iterator, Optional
-
 from rich import print as rprint
 from rich.text import Text
+import aiofiles
+import urllib
+import uuid
+from md2pdf.core import md2pdf
 
 from src.utils.configuration import settings
 from src.utils.constants import Colors
+
+
+async def write_to_file(filename: str, text: str) -> None:
+    """
+    Asynchronously write text to a file in UTF-8 encoding.
+
+    Args:
+        filename (str): The filename to write to.
+        text (str): The text to write.
+    """
+    # Convert text to UTF-8, replacing any problematic characters
+    text_utf8 = text.encode("utf-8", errors="replace").decode("utf-8")
+
+    async with aiofiles.open(filename, "w", encoding="utf-8") as file:
+        await file.write(text_utf8)
+
+
+async def write_md_to_pdf(text: str) -> str:
+    """
+    Converts Markdown text to a PDF file and returns the file path.
+
+    Args:
+        text (str): Markdown text to convert.
+
+    Returns:
+        str: The encoded file path of the generated PDF.
+    """
+    task = datetime.now().strftime("%Y%m%d") + "-" + uuid.uuid4().hex[:5]
+    file_path = f"./outputs/{task}"
+    directory = os.path.dirname(file_path)
+
+    # Ensure the directory exists
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    await write_to_file(f"{file_path}.md", text)
+
+    try:
+        md2pdf(
+            f"{file_path}.pdf",
+            md_content=None,
+            md_file_path=f"{file_path}.md",
+            css_file_path=None,
+            base_url=None,
+        )
+        print(f"Report written to {file_path}.pdf")
+    except Exception as e:
+        print(f"Error in converting Markdown to PDF: {e}")
+        return ""
+
+    encoded_file_path = urllib.parse.quote(f"{file_path}.pdf")
+    return encoded_file_path
 
 
 def stringify(x: Any) -> str:

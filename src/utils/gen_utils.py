@@ -1,3 +1,4 @@
+import importlib
 import os
 import pandas as pd
 import tiktoken
@@ -72,3 +73,22 @@ def consolidate_strings(strings):
         consolidated.append(current)
 
     return consolidated
+
+
+def safe_import(module: str, mitigation=None):
+    """
+    Import the specified module. If the module is not installed,
+    raise an ImportError with a helpful message.
+
+    Parameters
+    ----------
+    module : str
+        The name of the module to import
+    mitigation : Optional[str]
+        The package(s) to install to mitigate the error.
+        If not provided then the module name will be used.
+    """
+    try:
+        return importlib.import_module(module)
+    except ImportError:
+        raise ImportError(f"Please install {mitigation or module}")

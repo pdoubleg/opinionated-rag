@@ -81,7 +81,7 @@ class DocChatAgentConfig(ChatAgentConfig):
     add_fields_to_content: List[str] = []
     filter_fields: List[str] = []  # fields usable in filter
     retrieve_only: bool = False  # only retr relevant extracts, don't gen summary answer
-    extraction_granularity: int = 1  # granularity (in sentences) for relev extraction
+    extraction_granularity: int = 3  # granularity (in sentences) for relev extraction
     filter: str | None = (
         None  # filter condition for various lexical/semantic search fns
     )
@@ -130,10 +130,10 @@ class DocChatAgentConfig(ChatAgentConfig):
         max_chunks=10_000,
         # aim to have at least this many chars per chunk when
         # truncating due to punctuation
-        min_chunk_chars=200,
+        min_chunk_chars=5100,
         discard_chunk_chars=5,  # discard chunks with fewer than this many chars
         n_similar_docs=3,
-        n_neighbor_ids=0,  # num chunk IDs to store on either side of each chunk
+        n_neighbor_ids=4,  # num chunk IDs to store on either side of each chunk
         pdf=PdfParsingConfig(
             # NOTE: PDF parsing is extremely challenging, and each library
             # has its own strengths and weaknesses.
@@ -268,14 +268,14 @@ class DocChatAgent(ChatAgent):
                 docs = loader.load()
                 # update metadata of each doc with meta
                 for d in docs:
-                    d.metadata = d.metadata.copy(update=meta)
+                    d.metadata = d.metadata.model_copy(update=meta)
         if len(paths) > 0:
             for p in paths:
                 meta = paths_meta.get(p, {})
                 path_docs = RepoLoader.get_documents(p, parser=parser)
                 # update metadata of each doc with meta
                 for d in path_docs:
-                    d.metadata = d.metadata.copy(update=meta)
+                    d.metadata = d.metadata.model_copy(update=meta)
                 docs.extend(path_docs)
         n_docs = len(docs)
         n_splits = self.ingest_docs(docs)
@@ -312,10 +312,10 @@ class DocChatAgent(ChatAgent):
         """
         if isinstance(metadata, list) and len(metadata) > 0:
             for d, m in zip(docs, metadata):
-                d.metadata = d.metadata.copy(update=m)
+                d.metadata = d.metadata.model_copy(update=m)
         elif isinstance(metadata, dict):
             for d in docs:
-                d.metadata = d.metadata.copy(update=metadata)
+                d.metadata = d.metadata.model_copy(update=metadata)
 
         self.original_docs.extend(docs)
         if self.parser is None:

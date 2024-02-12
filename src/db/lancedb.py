@@ -1,5 +1,6 @@
+import json
 import logging
-from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Type
+from typing import Any, Dict, Generator, List, Optional, Sequence, Set, Tuple, Type
 
 import lancedb
 import pandas as pd
@@ -16,8 +17,10 @@ from src.embedding_models.models import OpenAIEmbeddingsConfig
 from src.types import Document, EmbeddingFunction
 from src.utils.configuration import settings
 from src.utils.pydantic_utils import (
+    clean_schema,
     dataframe_to_document_model,
     dataframe_to_documents,
+    extract_fields,
     flatten_pydantic_instance,
     flatten_pydantic_model,
     nested_dict_from_flat,
@@ -28,13 +31,14 @@ logger = logging.getLogger(__name__)
 
 
 class LanceDBConfig(VectorStoreConfig):
-    cloud: bool = False
     collection_name: str | None = "temp"
     storage_path: str = ".lancedb/data"
     embedding: EmbeddingModelsConfig = OpenAIEmbeddingsConfig()
     distance: str = "cosine"
     document_class: Type[Document] = Document
     flatten: bool = False  # flatten Document class into LanceSchema ?
+    filter_fields: List[str] = []  # fields usable in filter
+    filter: str | None = None  # filter condition for lexical/semantic search
 
 
 class LanceDB(VectorStore):
@@ -51,28 +55,23 @@ class LanceDB(VectorStore):
         self._setup_schemas(config.document_class)
 
         load_dotenv()
-        if self.config.cloud:
-            logger.warning(
-                "LanceDB Cloud is not available yet. Switching to local storage."
+
+        try:
+            self.client = lancedb.connect(
+                uri=config.storage_path,
             )
-            config.cloud = False
-        else:
-            try:
-                self.client = lancedb.connect(
-                    uri=config.storage_path,
-                )
-            except Exception as e:
-                new_storage_path = config.storage_path + ".new"
-                logger.warning(
-                    f"""
-                    Error connecting to local LanceDB at {config.storage_path}:
-                    {e}
-                    Switching to {new_storage_path}
-                    """
-                )
-                self.client = lancedb.connect(
-                    uri=new_storage_path,
-                )
+        except Exception as e:
+            new_storage_path = config.storage_path + ".new"
+            logger.warning(
+                f"""
+                Error connecting to local LanceDB at {config.storage_path}:
+                {e}
+                Switching to {new_storage_path}
+                """
+            )
+            self.client = lancedb.connect(
+                uri=new_storage_path,
+            )
 
         # Note: Only create collection if a non-null collection name is provided.
         # This is useful to delay creation of vecdb until we have a suitable
@@ -210,7 +209,14 @@ class LanceDB(VectorStore):
                     return
                 else:
                     logger.warning("Recreating fresh collection")
-        self.client.create_table(collection_name, schema=self.schema, mode="overwrite", on_bad_vectors='drop')
+        self.client.create_table(
+            collection_name, schema=self.schema, mode="overwrite", on_bad_vectors="drop"
+        )
+        tbl = self.client.open_table(self.config.collection_name)
+        # We assume "content" is available as top-level field
+        if "content" in tbl.schema.names:
+            tbl.create_fts_index("content", replace=True)
+
         if settings.debug:
             level = logger.getEffectiveLevel()
             logger.setLevel(logging.INFO)
@@ -247,7 +253,7 @@ class LanceDB(VectorStore):
                     self.unflattened_schema(
                         id=ids[i],
                         vector=embedding_vecs[i],
-                        **doc.dict(),
+                        **doc.model_dump(),
                     )
                     for i, doc in enumerate(documents[i : i + b])
                 ]
@@ -261,6 +267,9 @@ class LanceDB(VectorStore):
         tbl = self.client.open_table(self.config.collection_name)
         try:
             tbl.add(make_batches())
+            if "content" in tbl.schema.names:
+                tbl.create_fts_index("content", replace=True)
+                
         except Exception as e:
             logger.error(
                 f"""
@@ -290,10 +299,10 @@ class LanceDB(VectorStore):
         self.df_metadata_columns = actual_metadata  # could be updated below
         # get content column
         content_values = df[content].values.tolist()
-        embedding_vecs = self.embedding_fn(content_values)
-
-        # add vector column
-        df["vector"] = embedding_vecs
+        if "vector" not in df.columns:
+            embedding_vecs = self.embedding_fn(content_values)
+            df["vector"] = embedding_vecs
+        
         if content != "content":
             # rename content column to "content", leave existing column intact
             df = df.rename(columns={content: "content"}, inplace=False)
@@ -318,7 +327,7 @@ class LanceDB(VectorStore):
                 self.config.collection_name,
                 data=df,
                 mode="overwrite",
-                on_bad_vectors='drop',
+                on_bad_vectors="drop",
             )
             doc_cls = dataframe_to_document_model(
                 df,
@@ -328,10 +337,16 @@ class LanceDB(VectorStore):
             )
             self.config.document_class = doc_cls  # type: ignore
             self._setup_schemas(doc_cls)  # type: ignore
+            tbl = self.client.open_table(self.config.collection_name)
+            # We assume "content" is available as top-level field
+            if "content" in tbl.schema.names:
+                tbl.create_fts_index("content", replace=True)
         else:
             # collection exists and is not empty, so append to it
             tbl = self.client.open_table(self.config.collection_name)
             tbl.add(df)
+            if "content" in tbl.schema.names:
+                tbl.create_fts_index("content", replace=True)
 
     def delete_collection(self, collection_name: str) -> None:
         self.client.drop_table(collection_name)
@@ -393,7 +408,7 @@ class LanceDB(VectorStore):
         _ids = [str(id) for id in ids]
         tbl = self.client.open_table(self.config.collection_name)
         docs = [
-            self._lance_result_to_docs(tbl.search().where(f"id == '{_id}'"))[0]
+            self._lance_result_to_docs(tbl.search().where(f"id == '{_id}'"))
             for _id in _ids
         ]
         return docs
@@ -425,3 +440,138 @@ class LanceDB(VectorStore):
         doc_score_pairs = list(zip(docs, scores))
         self.show_if_debug(doc_score_pairs)
         return doc_score_pairs
+
+    def get_fts_chunks(
+        self,
+        query: str,
+        k: int = 5,
+        where: Optional[str] = None,
+    ) -> List[Tuple[Document, float]]:
+        """
+        Uses LanceDB FTS (Full Text Search).
+        """
+        # Clean up query: replace all newlines with spaces in query,
+        # force special search keywords to lower case, remove quotes,
+        # so it's not interpreted as code syntax
+        query_clean = (
+            query.replace("\n", " ")
+            .replace("AND", "and")
+            .replace("OR", "or")
+            .replace("NOT", "not")
+            .replace("'", "")
+            .replace('"', "")
+        )
+
+        tbl = self.client.open_table(self.config.collection_name)
+        tbl.create_fts_index(field_names="content", replace=True)
+        result = (
+            tbl.search(query_clean)
+            .where(where)
+            .limit(k)
+            .with_row_id(True)
+        )
+        docs = self._lance_result_to_docs(result)
+        scores = [r["score"] for r in result.to_list()]
+        return list(zip(docs, scores))
+
+
+    def _get_clean_vecdb_schema(self) -> str:
+        """Get a cleaned schema of the vector-db, to pass to the LLM
+        as part of instructions on how to generate a SQL filter."""
+        if len(self.config.filter_fields) == 0:
+            filterable_fields = (
+                self.client.open_table(self.config.collection_name)
+                .search()
+                .limit(1)
+                .to_pandas(flatten=True)
+                .columns.tolist()
+            )
+            # drop id, vector, metadata.id, metadata.window_ids, metadata.is_chunk
+            for fields in [
+                "id",
+                "vector",
+                "metadata.id",
+                "metadata.window_ids",
+                "metadata.is_chunk",
+            ]:
+                if fields in filterable_fields:
+                    filterable_fields.remove(fields)
+            logger.warning(
+                f"""
+            No filter_fields set in config, so using these fields as filterable fields:
+            {filterable_fields}
+            """
+            )
+            self.config.filter_fields = filterable_fields
+
+        if self.is_from_dataframe:
+            return self.is_from_dataframe
+        schema_dict = clean_schema(
+            self.schema,
+            excludes=["id", "vector"],
+        )
+        # intersect config.filter_fields with schema_dict.keys() in case
+        # there are extraneous fields in config.filter_fields
+        filter_fields_set = set(
+            self.config.filter_fields or schema_dict.keys()
+        ).intersection(schema_dict.keys())
+
+        # remove 'content' from filter_fields_set, even if it's not in filter_fields_set
+        filter_fields_set.discard("content")
+
+        # possible values of filterable fields
+        filter_field_values = self.get_field_values(list(filter_fields_set))
+
+        # add field values to schema_dict as another field `values` for each field
+        for field, values in filter_field_values.items():
+            if field in schema_dict:
+                schema_dict[field]["values"] = values
+        # if self.config.filter_fields is set, restrict to these:
+        if len(self.config.filter_fields) > 0:
+            schema_dict = {
+                k: v for k, v in schema_dict.items() if k in self.config.filter_fields
+            }
+        schema = json.dumps(schema_dict, indent=2)
+
+        schema += f"""
+        NOTE when creating a filter for a query, 
+        ONLY the following fields are allowed:
+        {",".join(self.config.filter_fields)} 
+        """
+        return schema
+
+
+    def get_field_values(self, fields: list[str]) -> Dict[str, str]:
+        """Get string-listing of possible values of each filterable field,
+        e.g.
+        {
+            "genre": "crime, drama, mystery, ... (10 more)",
+            "certificate": "R, PG-13, PG, R",
+        }
+        """
+        field_values: Dict[str, Set[str]] = {}
+        # make empty set for each field
+        for f in fields:
+            field_values[f] = set()
+        # get all documents and accumulate possible values of each field until 10
+        docs = self.get_all_documents()  # only works for vecdbs that support this
+        for d in docs:
+            # extract fields from d
+            doc_field_vals = extract_fields(d, fields)
+            for field, val in doc_field_vals.items():
+                field_values[field].add(val)
+        # For each field make a string showing list of possible values,
+        # truncate to 20 values, and if there are more, indicate how many
+        # more there are, e.g. Genre: crime, drama, mystery, ... (20 more)
+        field_values_list = {}
+        for f in fields:
+            vals = list(field_values[f])
+            n = len(vals)
+            remaining = n - 20
+            vals = vals[:20]
+            if n > 20:
+                vals.append(f"(...{remaining} more)")
+            # make a string of the values, ensure they are strings
+            field_values_list[f] = ", ".join(str(v) for v in vals)
+        return field_values_list
+    
