@@ -554,7 +554,7 @@ class LanceDB(VectorStore):
         for f in fields:
             field_values[f] = set()
         # get all documents and accumulate possible values of each field until 10
-        docs = self.get_all_documents()  # only works for vecdbs that support this
+        docs = self.get_all_documents()
         for d in docs:
             # extract fields from d
             doc_field_vals = extract_fields(d, fields)

@@ -263,7 +263,9 @@ def eliminate_near_duplicates(passages: List[str], threshold: float = 0.8) -> Li
     return [passages[idx] for idx in unique_idxs]
 
 
-def eliminate_near_duplicates_df(df: pd.DataFrame, column: str, threshold: float = 0.9) -> pd.DataFrame:
+def eliminate_near_duplicates_df(
+    df: pd.DataFrame, column: str, threshold: float = 0.9
+) -> pd.DataFrame:
     """
     Eliminate near duplicate text passages from a given DataFrame column using MinHash and LSH.
 
@@ -276,9 +278,9 @@ def eliminate_near_duplicates_df(df: pd.DataFrame, column: str, threshold: float
     Returns:
         pd.DataFrame: DataFrame after eliminating near duplicates in the specified column.
     """
-    
+
     from datasketch import MinHash, MinHashLSH
-    
+
     # Create LSH index
     lsh = MinHashLSH(threshold=threshold, num_perm=128)
 
@@ -301,6 +303,49 @@ def eliminate_near_duplicates_df(df: pd.DataFrame, column: str, threshold: float
             unique_idxs.add(idx)
 
     return df.loc[list(unique_idxs)]
+
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+
+def eliminate_near_duplicates_grouped(
+    df: pd.DataFrame, text_column: str, group_columns: list, threshold: float = 0.9
+) -> pd.DataFrame:
+    """
+    Groups the DataFrame by specified columns and eliminates near-duplicate rows within each group based on text similarity.
+
+    Args:
+        df (pd.DataFrame): The DataFrame to process.
+        text_column (str): The column containing text for duplication check.
+        group_columns (list): Columns to group by before deduplication.
+        threshold (float): Similarity threshold for considering texts as duplicates.
+
+    Returns:
+        pd.DataFrame: DataFrame with near-duplicates removed within each group.
+    """
+    # Function to eliminate near duplicates within a group
+    def dedupe_group(group: pd.DataFrame) -> pd.DataFrame:
+        if group.shape[0] > 1:  # Proceed only if there are at least 2 rows to compare
+            tfidf = TfidfVectorizer().fit_transform(group[text_column])
+            similarities = cosine_similarity(tfidf)
+            # Mark rows for dropping
+            drop_indices = []
+            for i in range(similarities.shape[0]):
+                for j in range(i + 1, similarities.shape[0]):
+                    if similarities[i, j] > threshold:
+                        drop_indices.append(j)
+            group = group.drop(group.index[drop_indices]).reset_index(drop=True)
+        return group
+
+    # Apply deduplication to each group
+    deduped_df = (
+        df.groupby(group_columns, group_keys=False)
+        .apply(dedupe_group)
+        .reset_index(drop=True)
+    )
+
+    return deduped_df
 
 
 def deduplicate(seq: list[str]) -> list[str]:

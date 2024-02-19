@@ -1,14 +1,16 @@
 from functools import cached_property
 import os
+import pandas as pd
 import pyarrow as pa
-from typing import Callable, List
+from typing import Callable, List, Tuple
 
 import tiktoken
 from dotenv import load_dotenv
 from openai import OpenAI
 
 from sentence_transformers import SentenceTransformer
-from transformers import AutoTokenizer
+import torch
+from transformers import AutoTokenizer, AutoModel
 
 from src.embedding_models.base import EmbeddingModel, EmbeddingModelsConfig, Reranker
 from src.llm.utils import retry_with_exponential_backoff
@@ -35,21 +37,38 @@ class ColbertReranker(Reranker):
         self,
         model_name: str = "colbert-ir/colbertv2.0",
         column: str = "content",
-        return_score="relevance",
+        return_score: str = "relevance",
     ):
-        super().__init__(return_score)
         self.model_name = model_name
         self.column = column
-        self.torch = safe_import("torch")  # import here for faster ops later
+        self.return_score = return_score
+        self.torch = torch
 
     def rerank_hybrid(
         self,
         query: str,
-        vector_results: pa.Table,
-        fts_results: pa.Table,
-    ):
-        combined_results = self.merge_results(vector_results, fts_results)
-        docs = combined_results[self.column].to_pylist()
+        vector_results: pd.DataFrame,
+        fts_results: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """
+        Reranks the combined results from vector and full-text search results.
+
+        Parameters
+        ----------
+        query : str
+            The search query.
+        vector_results : pd.DataFrame
+            The results from vector search.
+        fts_results : pd.DataFrame
+            The results from full-text search.
+
+        Returns
+        -------
+        pd.DataFrame
+            The reranked results as a DataFrame.
+        """
+        combined_results = pd.concat([vector_results, fts_results]).drop_duplicates().reset_index(drop=True)
+        docs = combined_results[self.column].tolist()
 
         tokenizer, model = self._model
 
@@ -67,52 +86,54 @@ class ColbertReranker(Reranker):
             score = self.maxsim(query_embedding.unsqueeze(0), document_embedding)
             scores.append(score.item())
 
-        # replace the self.column column with the docs
-        combined_results = combined_results.drop(self.column)
-        combined_results = combined_results.append_column(
-            self.column, pa.array(docs, type=pa.string())
-        )
-        # add the scores
-        combined_results = combined_results.append_column(
-            "_relevance_score", pa.array(scores, type=pa.float32())
-        )
-        if self.score == "relevance":
-            combined_results = combined_results.drop_columns(["score", "_distance"])
-        elif self.score == "all":
-            pass
+        # Add the scores to the DataFrame
+        combined_results["_relevance_score"] = scores
 
-        combined_results = combined_results.sort_by(
-            [("_relevance_score", "descending")]
-        )
+        if self.return_score == "relevance":
+            combined_results = combined_results.drop(columns=["score", "_distance"], errors='ignore')
+
+        combined_results = combined_results.sort_values(by="_relevance_score", ascending=False)
 
         return combined_results
 
     @cached_property
-    def _model(self):
-        transformers = safe_import("transformers")
-        tokenizer = transformers.AutoTokenizer.from_pretrained(self.model_name)
-        model = transformers.AutoModel.from_pretrained(self.model_name)
+    def _model(self) -> Tuple[AutoTokenizer, AutoModel]:
+        """
+        Loads the tokenizer and model for the reranker.
+
+        Returns
+        -------
+        Tuple[AutoTokenizer, AutoModel]
+            The tokenizer and model.
+        """
+        tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        model = AutoModel.from_pretrained(self.model_name)
 
         return tokenizer, model
 
-    def maxsim(self, query_embedding, document_embedding):
-        # Expand dimensions for broadcasting
-        # Query: [batch, length, size] -> [batch, query, 1, size]
-        # Document: [batch, length, size] -> [batch, 1, length, size]
+    def maxsim(self, query_embedding: torch.Tensor, document_embedding: torch.Tensor) -> torch.Tensor:
+        """
+        Calculates the maximum similarity score between the query and document embeddings.
+
+        Parameters
+        ----------
+        query_embedding : torch.Tensor
+            The query embedding tensor.
+        document_embedding : torch.Tensor
+            The document embedding tensor.
+
+        Returns
+        -------
+        torch.Tensor
+            The maximum similarity score.
+        """
         expanded_query = query_embedding.unsqueeze(2)
         expanded_doc = document_embedding.unsqueeze(1)
 
-        # Compute cosine similarity across the embedding dimension
-        sim_matrix = self.torch.nn.functional.cosine_similarity(
-            expanded_query, expanded_doc, dim=-1
-        )
-
-        # Take the maximum similarity for each query token (across all document tokens)
-        # sim_matrix shape: [batch_size, query_length, doc_length]
+        sim_matrix = self.torch.nn.functional.cosine_similarity(expanded_query, expanded_doc, dim=-1)
         max_sim_scores, _ = self.torch.max(sim_matrix, dim=2)
-
-        # Average these maximum scores across all query tokens
         avg_max_sim = self.torch.mean(max_sim_scores, dim=1)
+
         return avg_max_sim
 
 

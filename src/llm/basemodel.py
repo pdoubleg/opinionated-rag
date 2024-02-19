@@ -70,11 +70,6 @@ _cost_per_1k_tokens: Dict[str, Tuple[float, float]] = {
 }
 
 
-openAIChatModelPreferenceList = [
-    OpenAIChatModel.GPT4_TURBO,
-    OpenAIChatModel.GPT4,
-    OpenAIChatModel.GPT3_5_TURBO,
-]
 
 # Initialize Cache from config
 cache = Cache("/.mycache")
@@ -99,16 +94,6 @@ if "OPENAI_API_KEY" in os.environ:
 else:
     availableModels = set()
 
-
-defaultOpenAIChatModel = next(
-    chain(
-        filter(
-            lambda m: m.value in availableModels,
-            openAIChatModelPreferenceList,
-        ),
-        [OpenAIChatModel.GPT3_5_TURBO],
-    )
-)
 
 
 class OpenAICallParams(BaseModel):
@@ -137,7 +122,6 @@ class OpenAIConfig(BaseSettings):
     type: str = "openai"
     api_key: str = os.getenv("OPENAI_API_KEY")
     api_base: Optional[str] = None
-    model: str = defaultOpenAIChatModel
     response_model: Optional[BaseModel] = None
     max_retries: Optional[int] = 1
     validation_context: Optional[Dict[str, Any]] = Field(default_factory=dict)
@@ -740,77 +724,78 @@ class OpenAIGPT(LanguageModel):
             response_to_process = response.model_dump()
         return self._process_chat_completion_response(response_to_process)
 
-#     async def _openai_api_call(
-#         self, 
-#         func: Callable[..., Awaitable[Any]],
-#         errors: tuple = (  # type: ignore
-#         requests.exceptions.RequestException,
-#         openai.APITimeoutError,
-#         openai.RateLimitError,
-#         aiohttp.ServerTimeoutError,
-#         asyncio.TimeoutError,
-#     ),
-#         **kwargs
-#     ) -> Optional[Any]:
-#         """
-#         Makes an asynchronous API call with automatic retries on failure.
 
-#         Args:
-#             func (Callable[..., Awaitable[Any]]): The asynchronous function to call.
-#             **kwargs: Arbitrary keyword arguments passed to the function.
+    async def _openai_api_call(
+        self, 
+        func: Callable[..., Awaitable[Any]],
+        errors: tuple = (  # type: ignore
+        requests.exceptions.RequestException,
+        openai.APITimeoutError,
+        openai.RateLimitError,
+        aiohttp.ServerTimeoutError,
+        asyncio.TimeoutError,
+    ),
+        **kwargs
+    ) -> Optional[Any]:
+        """
+        Makes an asynchronous API call with automatic retries on failure.
 
-#         Returns:
-#             Optional[Any]: The result of the API call, or None if the call fails after retries.
-#         """
-#         max_retries: int = 5
-#         retry_count: int = 0
-#         base_wait_time: int = 1
+        Args:
+            func (Callable[..., Awaitable[Any]]): The asynchronous function to call.
+            **kwargs: Arbitrary keyword arguments passed to the function.
 
-#         while retry_count <= max_retries:
-#             try:
-#                 return await func(**kwargs)
-#             except errors as e:
-#                 logger.error(f"Attempt {retry_count} failed with error: {e}", exc_info=True)
-#                 logger.warning(f"{friendly_error(e)} Retrying... {2 ** retry_count}s")
-#                 retry_count += 1
-#                 await asyncio.sleep(base_wait_time * (2**retry_count))
-#             except (openai.BadRequestError, openai.PermissionDeniedError) as e:
-#                 logger.error(friendly_error(e))
-#                 return None
-#             except Exception as e:
-#                 logger.error(f"Unexpected error: {e}. Exiting...")
-#                 return None
+        Returns:
+            Optional[Any]: The result of the API call, or None if the call fails after retries.
+        """
+        max_retries: int = 5
+        retry_count: int = 0
+        base_wait_time: int = 1
 
-#         logger.error("Max retries reached. Exiting...")
-#         return None
+        while retry_count <= max_retries:
+            try:
+                return await func(**kwargs)
+            except errors as e:
+                logger.error(f"Attempt {retry_count} failed with error: {e}", exc_info=True)
+                logger.warning(f"{friendly_error(e)} Retrying... {2 ** retry_count}s")
+                retry_count += 1
+                await asyncio.sleep(base_wait_time * (2**retry_count))
+            except (openai.BadRequestError, openai.PermissionDeniedError) as e:
+                logger.error(friendly_error(e))
+                return None
+            except Exception as e:
+                logger.error(f"Unexpected error: {e}. Exiting...")
+                return None
 
-#     async def handle_multiple_prompts(self, prompts, response_model):
-#         tasks = [
-#             self._create_chat_completion(prompt, response_model) for prompt in prompts
-#         ]
-#         responses = await asyncio.gather(*tasks, return_exceptions=True)
+        logger.error("Max retries reached. Exiting...")
+        return None
 
-#         return responses
+    async def handle_multiple_prompts(self, prompts, response_model):
+        tasks = [
+            self._create_chat_completion(prompt, response_model) for prompt in prompts
+        ]
+        responses = await asyncio.gather(*tasks, return_exceptions=True)
 
-#     @instructor_acache
-#     async def _create_chat_completion(
-#         self,
-#         prompt,
-#         response_model=None,
-#     ):
-#         async def _api_call():
-#             return await self.async_client.chat.completions.create(
-#                 model=self.config.model,
-#                 messages=[
-#                     {"role": "system", "content": "You are a helpful assistant."},
-#                     {"role": "user", "content": prompt},
-#                 ],
-#                 response_model=response_model,
-#             )
+        return responses
 
-#         response = await self._openai_api_call(_api_call)
+    @instructor_acache
+    async def _create_chat_completion(
+        self,
+        prompt,
+        response_model=None,
+    ):
+        async def _api_call():
+            return await self.async_client.chat.completions.create(
+                model=self.config.model,
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": prompt},
+                ],
+                response_model=response_model,
+            )
 
-#         return response
+        response = await self._openai_api_call(_api_call)
+
+        return response
 
 
 # # Usage example:

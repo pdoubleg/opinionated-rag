@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import sys
@@ -10,6 +11,7 @@ from rich.text import Text
 import aiofiles
 import urllib
 import uuid
+from pathlib import Path
 from md2pdf.core import md2pdf
 
 from src.utils.configuration import settings
@@ -31,20 +33,24 @@ async def write_to_file(filename: str, text: str) -> None:
         await file.write(text_utf8)
 
 
-async def write_md_to_pdf(text: str) -> str:
+async def write_md_to_pdf(text: str, file_name: Optional[str] = None, output_dir: Optional[Path] = None) -> Optional[str]:
     """
-    Converts Markdown text to a PDF file and returns the file path.
+    Converts Markdown text to a PDF file and returns the file path. Allows specifying an output directory.
 
     Args:
         text (str): Markdown text to convert.
+        file_name (Optional[str]): Optional custom file name for the output PDF.
+        output_dir (Optional[Path]): Optional directory to write the PDF file to. Defaults to './outputs'.
 
     Returns:
-        str: The encoded file path of the generated PDF.
+        Optional[str]: The encoded file path of the generated PDF or None if an error occurs.
     """
-    task = datetime.now().strftime("%Y%m%d") + "-" + uuid.uuid4().hex[:5]
-    file_path = f"./outputs/{task}"
+    if not file_name:
+        file_name = datetime.now().strftime("%Y%m%d") + "-" + uuid.uuid4().hex[:5]
+    if not output_dir:
+        output_dir = "./outputs"
+    file_path = f"{output_dir}/{file_name}"
     directory = os.path.dirname(file_path)
-
     # Ensure the directory exists
     if not os.path.exists(directory):
         os.makedirs(directory)
@@ -52,7 +58,8 @@ async def write_md_to_pdf(text: str) -> str:
     await write_to_file(f"{file_path}.md", text)
 
     try:
-        md2pdf(
+        await asyncio.to_thread(
+            md2pdf,
             f"{file_path}.pdf",
             md_content=None,
             md_file_path=f"{file_path}.md",
@@ -62,8 +69,7 @@ async def write_md_to_pdf(text: str) -> str:
         print(f"Report written to {file_path}.pdf")
     except Exception as e:
         print(f"Error in converting Markdown to PDF: {e}")
-        return ""
-
+        return None
     encoded_file_path = urllib.parse.quote(f"{file_path}.pdf")
     return encoded_file_path
 

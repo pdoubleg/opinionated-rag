@@ -23,6 +23,15 @@ from src.types import DocMetaData, Document
 logger = logging.getLogger(__name__)
 
 
+def documents_to_dataframe(documents: List[BaseModel]) -> pd.DataFrame:
+    """Converts a list of Document objects into a pandas DataFrame."""
+    # Extract data from documents
+    data = [doc.model_dump() for doc in documents]
+    # Convert list of dictionaries to DataFrame
+    df = pd.DataFrame(data)
+    return df
+
+
 def has_field(model_class: Type[BaseModel], field_name: str) -> bool:
     """Check if a Pydantic model class has a field with the given name."""
     return field_name in model_class.model_fields

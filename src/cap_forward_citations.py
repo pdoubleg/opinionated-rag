@@ -103,7 +103,7 @@ def evaluate_excerpt(excerpt: str, cited_opinion_bluebook_citation: str):
         Answer YES or NO."""
     client = openai.OpenAI()
     chat_completion = client.chat.completions.create(
-        model="gpt-3.5-turbo-16k",
+        model="gpt-4-turbo-preview",
         messages=[{"role": "user", "content": prompt_text}],
         temperature=0,
     )
@@ -115,7 +115,7 @@ def pseudo_shepardize(case_id: int):
     case = fetch_case(case_id)
     bluebook_citation = get_bluebook_citation(case)
     forward_citations = fetch_forward_citations(case_id)
-    for citation in forward_citations:
+    for citation in forward_citations[-10:]:
         citing_case = fetch_citing_case(citation)
         citing_case_id = citing_case["id"]
         citing_case_bluebook_citation = get_bluebook_citation(citing_case)
@@ -144,7 +144,7 @@ def pseudo_shepardize(case_id: int):
 load_dotenv()
 CAP_API_KEY = os.getenv("CAP_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-TARGET_CASE_ID = 9117679
+TARGET_CASE_ID = 6200302
 result = pseudo_shepardize(TARGET_CASE_ID)
 column_names = [
     "Cited Case ID",

@@ -1,5 +1,5 @@
 from collections import Counter
-from typing import List, Tuple
+from typing import List, Optional, Tuple, Union
 import difflib
 import numpy as np
 import spacy
@@ -81,16 +81,13 @@ def get_top_citations(df, text_column, top_n):
 
     # Function to extract citations
     def extract_citations(text):
-        citations = eyecite.get_citations(text)
-        return [str(cite.corrected_citation_full()) for cite in citations]
+        citations = extract_resolved_citations(text)
+        return citations
 
     # Extracting all citations from the column
     all_citations = df[text_column].apply(extract_citations).sum()
-    # Filter in-line references
-    exclude_list = ["Id.", "§", "id.", "supra,", "supra."]
-    filtered_citations = [cite for cite in all_citations if cite not in exclude_list]
     # Counting citations
-    citation_counts = Counter(filtered_citations)
+    citation_counts = Counter(all_citations)
     # Getting top n citations
     top_citations = citation_counts.most_common(top_n)
     # Creating a DataFrame for top citations
@@ -106,6 +103,7 @@ def get_top_citations(df, text_column, top_n):
         else:
             links.append("No link found")
     top_citations_df["link"] = links
+    top_citations_df.drop_duplicates(inplace=True)
     return top_citations_df
 
 
@@ -113,7 +111,8 @@ def create_citation_lookup_table(
     df: pd.DataFrame, text_column: str, id_column: str
 ) -> pd.DataFrame:
     """
-    Creates a citation lookup table from a dataframe by finding distinct citations in a specified text column.
+    Creates a citation lookup table from a dataframe by extracting and resolving  
+        citations from a text column.
 
     Args:
         df (pd.DataFrame): The input dataframe containing the texts and ids.
@@ -123,25 +122,23 @@ def create_citation_lookup_table(
     Returns:
         pd.DataFrame: A dataframe with columns for id and citation.
     """
-    exclude_list = ["§", "Id.", "Id.,", "id.,", "id.", "supra", "Ibid."]
     # Initialize an empty list to store the citation data
     citation_data = []
 
     # Iterate over each row in the dataframe
-    for index, row in df.iterrows():
+    for _, row in df.iterrows():
         # Extract the text and id from the current row
         text = row[text_column]
         doc_id = row[id_column]
 
         # Find citations in the text
-        citations = eyecite.get_citations(text, remove_ambiguous=True)
+        citations = extract_resolved_citations(text)
 
         # For each citation found, append the id and the citation to the citation_data list
         for citation in citations:
-            if citation.corrected_citation() not in exclude_list:
-                citation_data.append(
-                    {"id": doc_id, "citation": str(citation.corrected_citation())}
-                )
+            citation_data.append(
+                {"id": doc_id, "citation": str(citation)}
+            )
 
     # Convert the citation_data list to a DataFrame
     citation_df = pd.DataFrame(citation_data, columns=["id", "citation"])
@@ -200,28 +197,59 @@ def resolve_citations(citations: List[CitationBase]) -> List[str]:
             pass
     return resolved
 
-def extract_citations(text: str) -> List[str]:
-    """Extracts a list of full name citations from text"""
-    if text is np.nan:
-        return []
-    citations = eyecite.get_citations(text)
-    return [str(cite.corrected_citation_full()) for cite in citations]
 
- 
-def get_citeurl_list(text: str):
+def extract_resolved_citations(text: str) -> List[str]:
+    """Extracts a list of resolved citations from text."""
     if text is np.nan:
         return []
+    citations = eyecite.get_citations(text, remove_ambiguous=True)
+    resolved_list = resolve_citations(citations)
+    return resolved_list
+
+
+def get_citeurl_list(
+    input_text: Union[str, pd.DataFrame], text_col: Optional[str] = None
+):
+    if input_text is np.nan:
+        return []
+    if isinstance(input_text, pd.DataFrame):
+        if text_col is None:
+            raise ValueError(
+                "text_col must be specified when input_text is a DataFrame."
+            )
+        input_text = " ".join(input_text[text_col].tolist())
     citator = Citator()
-    citations = citator.list_cites(text)
+    citations = citator.list_cites(input_text)
     return citations
 
- 
-def get_authorities_list(text: str):
-    if text is np.nan:
+
+def get_authorities_list(
+    input_text: Union[str, pd.DataFrame], text_col: Optional[str] = None
+) -> List[str]:
+    """
+    Extracts a list of authorities from the given text or DataFrame column.
+
+    Args:
+        input_text (Union[str, pd.DataFrame]): The input text or DataFrame containing the text.
+        text_col (Optional[str]): The column name in the DataFrame that contains the text. Required if input_text is a DataFrame.
+
+    Returns:
+        List[str]: A list of extracted authorities.
+
+    Raises:
+        ValueError: If input_text is a DataFrame and text_col is None.
+    """
+    if input_text is np.nan:
         return []
+    if isinstance(input_text, pd.DataFrame):
+        if text_col is None:
+            raise ValueError(
+                "text_col must be specified when input_text is a DataFrame."
+            )
+        input_text = " ".join(input_text[text_col].tolist())
     citator = Citator()
     authorities = citator.list_authorities(
-        text,
+        input_text,
         ignored_tokens=["subsection", "clause", "pincite", "paragraph"],
         known_authorities=[],
         sort_by_cites=True,
@@ -229,7 +257,6 @@ def get_authorities_list(text: str):
     )
     return authorities
 
- 
 
 def make_annotations(
     citations: List[CaseCitation],
@@ -263,23 +290,22 @@ def create_annotated_text(text: str) -> str:
     return annotated_text
 
 
-
 def extract_citation_with_context_from_docs(
     docs: List[Document],
     target_citation: str,
-    sentences_before: int, 
+    sentences_before: int,
     sentences_after: int,
 ) -> List[Document]:
     """
     Extracts a target citation from a list of Document objects and provides context around each citation,
     creating new Document objects with extracted text as content and remaining data as metadata.
-    
+
     Args:
         docs (List[Document]): The list of Document objects to process.
         target_citation: (str): The target citation to search
         sentences_before (int): The number of sentences before the citation to include in the context.
         sentences_after (int): The number of sentences after the citation to include in the context.
-    
+
     Returns:
         List[Document]: A list of new Document objects with extracted text as content and remaining data as metadata.
     """
@@ -291,7 +317,7 @@ def extract_citation_with_context_from_docs(
         original_metadata = doc.metadata
         nlp_doc = nlp(text)
         sentences = list(nlp_doc.sents)
-        
+
         citations = eyecite.get_citations(text, remove_ambiguous=True)
 
         for citation in citations:
@@ -300,15 +326,34 @@ def extract_citation_with_context_from_docs(
                 span = citation.span()
                 start_char, end_char = span
                 # Find the sentence containing the citation
-                containing_sentence = next((sent for sent in sentences if sent.start_char <= start_char and sent.end_char >= end_char), None)
+                containing_sentence = next(
+                    (
+                        sent
+                        for sent in sentences
+                        if sent.start_char <= start_char and sent.end_char >= end_char
+                    ),
+                    None,
+                )
                 if containing_sentence:
                     # Expand to include a few sentences before and after, if available
                     sent_index = sentences.index(containing_sentence)
                     start_index = max(0, sent_index - sentences_before)
-                    end_index = min(len(sentences), sent_index + sentences_after + 1)  # includes the current
-                    context = " ".join([str(sent) for sent in sentences[start_index:end_index]])
-                    start_char_context = sentences[start_index].start_char if start_index < len(sentences) else 0
-                    end_char_context = sentences[end_index - 1].end_char if end_index > 0 else len(text)
+                    end_index = min(
+                        len(sentences), sent_index + sentences_after + 1
+                    )  # includes the current
+                    context = " ".join(
+                        [str(sent) for sent in sentences[start_index:end_index]]
+                    )
+                    start_char_context = (
+                        sentences[start_index].start_char
+                        if start_index < len(sentences)
+                        else 0
+                    )
+                    end_char_context = (
+                        sentences[end_index - 1].end_char
+                        if end_index > 0
+                        else len(text)
+                    )
                     new_doc_metadata = {
                         **original_metadata,  # Include all original metadata
                         "parent_id": original_metadata.get("id", ""),
@@ -316,33 +361,50 @@ def extract_citation_with_context_from_docs(
                         "start_char": start_char_context,
                         "end_char": end_char_context,
                     }
-                    new_docs.append(Document(content=context, metadata=new_doc_metadata))
+                    new_docs.append(
+                        Document(content=context, metadata=new_doc_metadata)
+                    )
 
     return new_docs
 
 
-def extract_citations_with_context_from_df(
-    df: pd.DataFrame, 
-    text_column: str, 
-    id_column: str, 
-    sentences_before: int, 
+def get_citation_context(
+    df: pd.DataFrame,
+    text_column: str,
+    id_column: str,
+    sentences_before: int,
     sentences_after: int,
-    ) -> pd.DataFrame:
+    target_citations: Optional[List[str]] = None,
+) -> pd.DataFrame:
     """
-    Extracts citations from a dataframe and provides context around each citation.
-    
+    Extracts citations from a dataframe and provides context around each citation. Optionally, 
+    limits extraction to a specified list of citations.
+
     Args:
         df (pd.DataFrame): The dataframe containing the documents to process.
         text_column (str): The name of the column containing the text.
         id_column (str): The name of the column containing the document ID.
         sentences_before (int): The number of sentences before the citation to include in the context.
         sentences_after (int): The number of sentences after the citation to include in the context.
-    
+        target_citations (Optional[List[str]]): A list of citations to extract. If None, all citations are extracted.
+
     Returns:
         pd.DataFrame: A dataframe with columns for document ID, citation, and context around the citation.
     """
     nlp = spacy.load("en_core_web_sm")
-    exclude_list = ['§', 'Id.', 'Id.,', 'id.,', 'id.', 'supra', 'Ibid.', '§§', '[§', 'supra,', '(§']
+    exclude_list = [
+        "§",
+        "Id.",
+        "Id.,",
+        "id.,",
+        "id.",
+        "supra",
+        "Ibid.",
+        "§§",
+        "[§",
+        "supra,",
+        "(§",
+    ]
     citation_data = []
 
     for _, row in df.iterrows():
@@ -350,33 +412,56 @@ def extract_citations_with_context_from_df(
         doc_id = row[id_column]
         doc = nlp(text)
         sentences = list(doc.sents)
-        
+
         citations = eyecite.get_citations(text, remove_ambiguous=True)
 
         for citation in citations:
             citation_str = citation.corrected_citation()
-            if citation_str not in exclude_list:
-                span = citation.span()
-                start_char, end_char = span
-                # Find the sentence containing the citation
-                containing_sentence = next((sent for sent in sentences if sent.start_char <= start_char and sent.end_char >= end_char), None)
-                if containing_sentence:
-                    # Expand to include a few sentences before and after, if available
-                    sent_index = sentences.index(containing_sentence)
-                    start_index = max(0, sent_index - sentences_before)
-                    end_index = min(len(sentences), sent_index + sentences_after)  # includes the current
-                    context = " ".join([str(sent) for sent in sentences[start_index:end_index]])
-                    start_char_context = sentences[start_index].start_char if start_index < len(sentences) else 0
-                    end_char_context = sentences[end_index - 1].end_char if end_index > 0 else len(text)
-                    citation_data.append({
-                        "id": doc_id,
-                        "citation": citation_str,
-                        "context": context,
-                        "start_char": start_char_context,
-                        "end_char": end_char_context,
-                    })
+            if target_citations is None or citation_str in target_citations:
+                if citation_str not in exclude_list:
+                    span = citation.span()
+                    start_char, end_char = span
+                    # Find the sentence containing the citation
+                    containing_sentence = next(
+                        (
+                            sent
+                            for sent in sentences
+                            if sent.start_char <= start_char and sent.end_char >= end_char
+                        ),
+                        None,
+                    )
+                    if containing_sentence:
+                        # Expand to include a few sentences before and after, if available
+                        sent_index = sentences.index(containing_sentence)
+                        start_index = max(0, sent_index - sentences_before)
+                        end_index = min(
+                            len(sentences), sent_index + sentences_after
+                        )  # includes the current
+                        context = " ".join(
+                            [str(sent) for sent in sentences[start_index:end_index]]
+                        )
+                        start_char_context = (
+                            sentences[start_index].start_char
+                            if start_index < len(sentences)
+                            else 0
+                        )
+                        end_char_context = (
+                            sentences[end_index - 1].end_char
+                            if end_index > 0
+                            else len(text)
+                        )
+                        citation_data.append(
+                            {
+                                "id": doc_id,
+                                "citation": citation_str,
+                                "context": context,
+                                "start_char": start_char_context,
+                                "end_char": end_char_context,
+                            }
+                        )
 
-    citation_df = pd.DataFrame(citation_data, columns=["id", "citation", "context", "start_char", "end_char"])
-
+    citation_df = pd.DataFrame(
+        citation_data, columns=["id", "citation", "context", "start_char", "end_char"]
+    )
+    citation_df.drop_duplicates(inplace=True)
     return citation_df
-
