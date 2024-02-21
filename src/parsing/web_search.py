@@ -120,4 +120,3 @@ def metaphor_search(query: str, num_results: int = 5) -> List[WebSearchResult]:
     return [
         WebSearchResult(result.title, result.url, 3500, 300) for result in raw_results
     ]
-    

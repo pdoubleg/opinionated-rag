@@ -67,7 +67,11 @@ class ColbertReranker(Reranker):
         pd.DataFrame
             The reranked results as a DataFrame.
         """
-        combined_results = pd.concat([vector_results, fts_results]).drop_duplicates().reset_index(drop=True)
+        combined_results = (
+            pd.concat([vector_results, fts_results])
+            .drop_duplicates()
+            .reset_index(drop=True)
+        )
         docs = combined_results[self.column].tolist()
 
         tokenizer, model = self._model
@@ -90,9 +94,13 @@ class ColbertReranker(Reranker):
         combined_results["_relevance_score"] = scores
 
         if self.return_score == "relevance":
-            combined_results = combined_results.drop(columns=["score", "_distance"], errors='ignore')
+            combined_results = combined_results.drop(
+                columns=["score", "_distance"], errors="ignore"
+            )
 
-        combined_results = combined_results.sort_values(by="_relevance_score", ascending=False)
+        combined_results = combined_results.sort_values(
+            by="_relevance_score", ascending=False
+        )
 
         return combined_results
 
@@ -111,7 +119,9 @@ class ColbertReranker(Reranker):
 
         return tokenizer, model
 
-    def maxsim(self, query_embedding: torch.Tensor, document_embedding: torch.Tensor) -> torch.Tensor:
+    def maxsim(
+        self, query_embedding: torch.Tensor, document_embedding: torch.Tensor
+    ) -> torch.Tensor:
         """
         Calculates the maximum similarity score between the query and document embeddings.
 
@@ -130,7 +140,9 @@ class ColbertReranker(Reranker):
         expanded_query = query_embedding.unsqueeze(2)
         expanded_doc = document_embedding.unsqueeze(1)
 
-        sim_matrix = self.torch.nn.functional.cosine_similarity(expanded_query, expanded_doc, dim=-1)
+        sim_matrix = self.torch.nn.functional.cosine_similarity(
+            expanded_query, expanded_doc, dim=-1
+        )
         max_sim_scores, _ = self.torch.max(sim_matrix, dim=2)
         avg_max_sim = self.torch.mean(max_sim_scores, dim=1)
 

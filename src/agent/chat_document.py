@@ -20,7 +20,7 @@ from src.utils.output import shorten_text
 class ChatDocAttachment(BaseModel):
     # any additional data that should be attached to the document
     class Config:
-        extra = 'allow'
+        extra = "allow"
 
 
 class ChatDocMetaData(DocMetaData):

@@ -35,5 +35,3 @@ class GoogleSearchTool(ToolMessage):
                 num_results=3,
             ),
         ]
-        
-        

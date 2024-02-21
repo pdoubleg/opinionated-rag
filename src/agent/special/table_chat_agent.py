@@ -253,5 +253,3 @@ class TableChatAgent(ChatAgent):
                     should be in the `code` field.
                     """
         return None
-    
-    

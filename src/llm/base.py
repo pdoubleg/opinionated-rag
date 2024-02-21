@@ -26,8 +26,10 @@ from src.utils.output import show_if_debug
 
 logger = logging.getLogger(__name__)
 
+
 def noop_fn(*args: List[Any], **kwargs: Dict[str, Any]) -> None:
     pass
+
 
 class LLMConfig(BaseSettings):
     type: str = "openai"
@@ -187,7 +189,7 @@ class LLMResponse(BaseModel):
     function_call: Optional[LLMFunctionCall] = None
     usage: Optional[LLMTokenUsage] = None
     cached: bool = False
-    
+
     def __str__(self) -> str:
         if self.function_call is not None:
             return str(self.function_call)

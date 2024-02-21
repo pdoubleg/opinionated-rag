@@ -102,9 +102,9 @@ class Reranker(ABC):
         pass
 
     def merge_results(
-        self, 
-        vector_results: Union[pa.Table, pd.DataFrame], 
-        fts_results: Union[pa.Table, pd.DataFrame]
+        self,
+        vector_results: Union[pa.Table, pd.DataFrame],
+        fts_results: Union[pa.Table, pd.DataFrame],
     ) -> Union[pa.Table, pd.DataFrame]:
         """
         Merge the results from the vector and FTS search by concatenating the results and removing duplicates.
@@ -125,8 +125,14 @@ class Reranker(ABC):
         Union[pa.Table, pd.DataFrame]
             The combined results after merging and deduplication.
         """
-        if isinstance(vector_results, pd.DataFrame) and isinstance(fts_results, pd.DataFrame):
-            combined = pd.concat([vector_results, fts_results]).drop_duplicates().reset_index(drop=True)
+        if isinstance(vector_results, pd.DataFrame) and isinstance(
+            fts_results, pd.DataFrame
+        ):
+            combined = (
+                pd.concat([vector_results, fts_results])
+                .drop_duplicates()
+                .reset_index(drop=True)
+            )
             return combined
         elif isinstance(vector_results, pa.Table) and isinstance(fts_results, pa.Table):
             combined = pa.concat_tables([vector_results, fts_results], promote=True)

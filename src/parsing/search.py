@@ -324,6 +324,7 @@ def eliminate_near_duplicates_grouped(
     Returns:
         pd.DataFrame: DataFrame with near-duplicates removed within each group.
     """
+
     # Function to eliminate near duplicates within a group
     def dedupe_group(group: pd.DataFrame) -> pd.DataFrame:
         if group.shape[0] > 1:  # Proceed only if there are at least 2 rows to compare

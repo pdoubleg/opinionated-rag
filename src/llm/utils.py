@@ -14,7 +14,7 @@ from pydantic import BaseModel
 import requests
 from diskcache import Cache
 
-from src.utils.system import friendly_error
+# from src.utils.system import friendly_error
 
 logger = logging.getLogger(__name__)
 # setlevel to warning
@@ -64,7 +64,7 @@ logger.setLevel(logging.INFO)
 #             {"role": "user", "content": data},
 #         ],
 #     )
-    
+
 # model = extract("Extract jason is 25 years old")
 
 
@@ -93,6 +93,7 @@ logger.setLevel(logging.INFO)
 def async_cache_decorator_factory(cache: Cache):
     def instructor_acache(func):
         """Cache decorator for asynchronous methods returning Pydantic models."""
+
         @functools.wraps(func)
         async def wrapper(self, *args, **kwargs):
             # Generate a unique key based on the function name and arguments
@@ -108,7 +109,9 @@ def async_cache_decorator_factory(cache: Cache):
             serialized_result = result.json()
             cache.set(key, serialized_result)
             return result
+
         return wrapper
+
     return instructor_acache
 
 
@@ -244,5 +247,3 @@ def async_retry_with_exponential_backoff(
                 raise e
 
     return wrapper
-
-

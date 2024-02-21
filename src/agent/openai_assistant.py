@@ -839,4 +839,3 @@ class OpenAIAssistant(ChatAgent):
             return response
         except Exception:
             return response
-        

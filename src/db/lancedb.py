@@ -269,7 +269,7 @@ class LanceDB(VectorStore):
             tbl.add(make_batches())
             if "content" in tbl.schema.names:
                 tbl.create_fts_index("content", replace=True)
-                
+
         except Exception as e:
             logger.error(
                 f"""
@@ -302,7 +302,7 @@ class LanceDB(VectorStore):
         if "vector" not in df.columns:
             embedding_vecs = self.embedding_fn(content_values)
             df["vector"] = embedding_vecs
-        
+
         if content != "content":
             # rename content column to "content", leave existing column intact
             df = df.rename(columns={content: "content"}, inplace=False)
@@ -464,16 +464,10 @@ class LanceDB(VectorStore):
 
         tbl = self.client.open_table(self.config.collection_name)
         tbl.create_fts_index(field_names="content", replace=True)
-        result = (
-            tbl.search(query_clean)
-            .where(where)
-            .limit(k)
-            .with_row_id(True)
-        )
+        result = tbl.search(query_clean).where(where).limit(k).with_row_id(True)
         docs = self._lance_result_to_docs(result)
         scores = [r["score"] for r in result.to_list()]
         return list(zip(docs, scores))
-
 
     def _get_clean_vecdb_schema(self) -> str:
         """Get a cleaned schema of the vector-db, to pass to the LLM
@@ -540,7 +534,6 @@ class LanceDB(VectorStore):
         """
         return schema
 
-
     def get_field_values(self, fields: list[str]) -> Dict[str, str]:
         """Get string-listing of possible values of each filterable field,
         e.g.
@@ -574,4 +567,3 @@ class LanceDB(VectorStore):
             # make a string of the values, ensure they are strings
             field_values_list[f] = ", ".join(str(v) for v in vals)
         return field_values_list
-    

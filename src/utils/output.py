@@ -33,7 +33,9 @@ async def write_to_file(filename: str, text: str) -> None:
         await file.write(text_utf8)
 
 
-async def write_md_to_pdf(text: str, file_name: Optional[str] = None, output_dir: Optional[Path] = None) -> Optional[str]:
+async def write_md_to_pdf(
+    text: str, file_name: Optional[str] = None, output_dir: Optional[Path] = None
+) -> Optional[str]:
     """
     Converts Markdown text to a PDF file and returns the file path. Allows specifying an output directory.
 
@@ -63,7 +65,7 @@ async def write_md_to_pdf(text: str, file_name: Optional[str] = None, output_dir
             f"{file_path}.pdf",
             md_content=None,
             md_file_path=f"{file_path}.md",
-            css_file_path=None,
+            css_file_path="./src/style.css",
             base_url=None,
         )
         print(f"Report written to {file_path}.pdf")
@@ -181,3 +183,47 @@ class SuppressLoggerWarnings:
     def __exit__(self, exc_type, exc_value, traceback) -> None:  # type: ignore
         # Reset the logging level to its original value
         self.logger.setLevel(self.original_level)
+        
+        
+from bs4 import BeautifulSoup
+
+def generate_html_with_toc(html_text: str) -> str:
+    """
+    Generates HTML content with a table of contents (ToC) based on the headers found in the input HTML text.
+    
+    Args:
+        html_text (str): The HTML content converted from Markdown.
+        
+    Returns:
+        str: The HTML content with a ToC inserted at the beginning.
+    """
+    soup = BeautifulSoup(html_text, 'html.parser')
+
+    toc_list = soup.new_tag("ul", id='table-of-contents')
+    back_to_toc_template = soup.new_tag("a", href="#table-of-contents")
+    back_to_toc_template.string = "Back to Table of Contents"
+    back_to_toc_template['class'] = 'back-to-toc'
+
+    for header in soup.find_all(['h1', 'h2', 'h3']):
+        header_id = header.text.replace(" ", "-").lower()
+        header['id'] = header_id  # Assign ID to header for linking
+        
+        # Create ToC entry
+        li = soup.new_tag("li")
+        a = soup.new_tag("a", href=f"#{header_id}")
+        a.string = header.text
+        li.append(a)
+        toc_list.append(li)
+        
+        # Add back-link after the header or section
+        back_link = soup.new_tag("a", href="#table-of-contents", **{'class': 'back-to-toc'})
+        back_link.string = "Back to Table of Contents"
+        header.insert_after(back_link)
+
+    # Check if the body tag exists and insert the ToC, otherwise prepend to the soup object
+    if soup.body:
+        soup.body.insert(0, toc_list)
+    else:
+        soup.insert(0, toc_list)
+
+    return str(soup)

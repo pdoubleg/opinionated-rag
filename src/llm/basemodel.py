@@ -31,21 +31,24 @@ from pydantic_settings import BaseSettings
 from diskcache import Cache
 import functools
 import inspect
+# from utils.constants import NO_ANSWER
 
-from src.llm.utils import (
+# from utils.system import friendly_error
+
+from utils import (
     async_retry_with_exponential_backoff,
     retry_with_exponential_backoff,
     async_cache_decorator_factory,
 )
 
 import instructor
-from src.utils.configuration import Settings
-from src.utils.constants import NO_ANSWER
-from src.utils.system import friendly_error
+# from utils.configuration import Settings
+# from utils.constants import NO_ANSWER
+# from system import friendly_error
 
 logger = logging.getLogger(__name__)
 
-settings = Settings(debug=True)
+# settings = Settings(debug=True)
 
 
 class OpenAIChatModel(str, Enum):
@@ -70,31 +73,11 @@ _cost_per_1k_tokens: Dict[str, Tuple[float, float]] = {
 }
 
 
-
 # Initialize Cache from config
 cache = Cache("/.mycache")
 
 # Create an async decorator with the configured cache
 instructor_acache = async_cache_decorator_factory(cache)
-
-
-if "OPENAI_API_KEY" in os.environ:
-    try:
-        availableModels = set(map(lambda m: m.id, OpenAI().models.list()))
-    except openai.AuthenticationError as e:
-        if settings.debug:
-            logger.warning(
-                f"""
-            OpenAI Authentication Error: {e}.
-            ---
-            If you intended to use an OpenAI Model, you should fix this.
-            """
-            )
-        availableModels = set()
-else:
-    availableModels = set()
-
-
 
 class OpenAICallParams(BaseModel):
     """
@@ -724,18 +707,17 @@ class OpenAIGPT(LanguageModel):
             response_to_process = response.model_dump()
         return self._process_chat_completion_response(response_to_process)
 
-
     async def _openai_api_call(
-        self, 
+        self,
         func: Callable[..., Awaitable[Any]],
         errors: tuple = (  # type: ignore
-        requests.exceptions.RequestException,
-        openai.APITimeoutError,
-        openai.RateLimitError,
-        aiohttp.ServerTimeoutError,
-        asyncio.TimeoutError,
-    ),
-        **kwargs
+            requests.exceptions.RequestException,
+            openai.APITimeoutError,
+            openai.RateLimitError,
+            aiohttp.ServerTimeoutError,
+            asyncio.TimeoutError,
+        ),
+        **kwargs,
     ) -> Optional[Any]:
         """
         Makes an asynchronous API call with automatic retries on failure.
@@ -755,7 +737,9 @@ class OpenAIGPT(LanguageModel):
             try:
                 return await func(**kwargs)
             except errors as e:
-                logger.error(f"Attempt {retry_count} failed with error: {e}", exc_info=True)
+                logger.error(
+                    f"Attempt {retry_count} failed with error: {e}", exc_info=True
+                )
                 logger.warning(f"{friendly_error(e)} Retrying... {2 ** retry_count}s")
                 retry_count += 1
                 await asyncio.sleep(base_wait_time * (2**retry_count))
@@ -788,7 +772,10 @@ class OpenAIGPT(LanguageModel):
                 model=self.config.model,
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": prompt},
+                    {
+                    "role": "user",
+                    "content": f"Consider the data below:\n{prompt} and segment it into multiple search queries",
+                    },
                 ],
                 response_model=response_model,
             )
@@ -798,46 +785,92 @@ class OpenAIGPT(LanguageModel):
         return response
 
 
-# # Usage example:
-# class Variable(BaseModel):
-#     variable: str = Field(..., description="Variable name")
-#     value: Optional[str] = Field(..., description="Variable value")
-#     unit: str = Field(..., description="Variable unit")
+client = instructor.patch(OpenAI())
 
 
-# class SimpleCalculation(BaseModel):
-#     expression: str = Field(..., description="Expression to calculate")
-#     lead_variable: Variable = Field(
-#         ...,
-#         description="Lead variable. You must calculate the value using the 'expression' and 'values'",
-#     )
-#     variables: List[Variable] = Field(..., description="List of variables")
+class SearchType(str, Enum):
+    """Enumeration representing the types of searches that can be performed."""
+
+    VIDEO = "video"
+    EMAIL = "email"
+    DOCUMENT = "document"
+    INTERNET = "internet"
+    NEWS = "news"
+    WED = "web"
 
 
-# # Define the prompts
-# beam = "5m simply supported beam with a central point load of P = 10kN and constant EI"
-# prompts = [
-#     f"Bending moment formula: {beam}",
-#     f"Deflection formula: {beam}",
-#     f"Shear force formula: {beam}",
-# ]
+class Search(BaseModel):
+    """
+    Class representing a single search query which contains title, query and the search type
+    """
 
-# # Define model
-# model = "gpt-4-1106-preview"
-# openai_client = OpenAIGPT()
+    search_title: str = Field(..., description="Title of the request")
+    query: str = Field(..., description="Query to search for relevant content")
+    type: SearchType = Field(..., description="Type of search")
 
+    async def execute(self):
+        import asyncio
 
-# async def main() -> None:
-#     # Get the responses
-#     responses = await openai_client.handle_multiple_prompts(
-#         prompts,
-#         response_model=SimpleCalculation,
-#     )
-
-#     for response in responses:
-#         print("-"*100)
-#         print(response._raw_response.usage)
-#         print(response.model_dump_json(indent=2))
+        await asyncio.sleep(1)
+        print(
+            f"Searching for `{self.search_title}` with query `{self.query}` using `{self.type}`"
+        )
 
 
-# asyncio.run(main())
+class MultiSearch(BaseModel):
+    """
+    Class representing multiple search queries.
+    Make sure they contain all the required attributes
+
+    Args:
+        searches (List[Search]): The list of searches to perform.
+    """
+
+    searches: List[Search] = Field(..., description="List of searches")
+
+    def execute(self):
+        import asyncio
+
+        loop = asyncio.get_event_loop()
+
+        tasks = asyncio.gather(*[search.execute() for search in self.searches])
+        return loop.run_until_complete(tasks)
+
+
+def segment(data: str) -> MultiSearch:
+    """
+    Convert a string into multiple search queries using OpenAI's GPT-3 model.
+
+    Args:
+        data (str): The string to convert into search queries.
+
+    Returns:
+        MultiSearch: An object representing the multiple search queries.
+    """
+
+    completion = client.chat.completions.create(
+        model="gpt-4-0613",
+        temperature=0.1,
+        response_model=MultiSearch,
+        messages=[
+            {
+                "role": "system",
+                "content": "You are a helpful assistant.",
+            },
+            {
+                "role": "user",
+                "content": f"Consider the data below:\n{data} and segment it into multiple search queries",
+            },
+        ],
+        max_tokens=1000,
+    )
+    return MultiSearch.model_validate(completion)
+
+
+if __name__ == "__main__":
+    queries = segment(
+        "Please search the internet for news about the insurance litigation."
+    )
+
+    queries.execute()
+    

@@ -24,7 +24,8 @@ class Entity(str, Enum):
 
 class DocMetaData(BaseModel):
     """Metadata for a document."""
-    model_config = ConfigDict(extra='allow')
+
+    model_config = ConfigDict(extra="allow")
     source: str = "context"
     is_chunk: bool = False  # if it is a chunk, don't split
     id: str = ""  # unique id for the document
@@ -43,8 +44,6 @@ class DocMetaData(BaseModel):
                 original_dict[key] = 1 * value
 
         return original_dict
-
-
 
 
 class Document(BaseModel):

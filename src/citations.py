@@ -111,7 +111,7 @@ def create_citation_lookup_table(
     df: pd.DataFrame, text_column: str, id_column: str
 ) -> pd.DataFrame:
     """
-    Creates a citation lookup table from a dataframe by extracting and resolving  
+    Creates a citation lookup table from a dataframe by extracting and resolving
         citations from a text column.
 
     Args:
@@ -136,9 +136,7 @@ def create_citation_lookup_table(
 
         # For each citation found, append the id and the citation to the citation_data list
         for citation in citations:
-            citation_data.append(
-                {"id": doc_id, "citation": str(citation)}
-            )
+            citation_data.append({"id": doc_id, "citation": str(citation)})
 
     # Convert the citation_data list to a DataFrame
     citation_df = pd.DataFrame(citation_data, columns=["id", "citation"])
@@ -377,7 +375,7 @@ def get_citation_context(
     target_citations: Optional[List[str]] = None,
 ) -> pd.DataFrame:
     """
-    Extracts citations from a dataframe and provides context around each citation. Optionally, 
+    Extracts citations from a dataframe and provides context around each citation. Optionally,
     limits extraction to a specified list of citations.
 
     Args:
@@ -426,7 +424,8 @@ def get_citation_context(
                         (
                             sent
                             for sent in sentences
-                            if sent.start_char <= start_char and sent.end_char >= end_char
+                            if sent.start_char <= start_char
+                            and sent.end_char >= end_char
                         ),
                         None,
                     )

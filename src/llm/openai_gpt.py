@@ -241,7 +241,6 @@ class OpenAIGPTConfig(LLMConfig):
     class Config:
         env_prefix = "OPENAI_"
 
-
     @classmethod
     def create(cls, prefix: str) -> Type["OpenAIGPTConfig"]:
         """Create a config class whose params can be set via a desired
@@ -299,7 +298,7 @@ class OpenAIGPT(LanguageModel):
             config: configuration for openai-gpt model
         """
         # copy the config to avoid modifying the original
-        config = config.model_copy ()
+        config = config.model_copy()
         super().__init__(config)
         self.config: OpenAIGPTConfig = config
 
@@ -764,9 +763,7 @@ class OpenAIGPT(LanguageModel):
                 if settings.debug:
                     print("[grey37]CACHED[/grey37]")
             else:
-                completion_call = (
-                    self.client.completions.create
-                )
+                completion_call = self.client.completions.create
                 # If it's not in the cache, call the API
                 result = completion_call(**kwargs)
                 if self.get_stream():
@@ -835,9 +832,7 @@ class OpenAIGPT(LanguageModel):
                 if settings.debug:
                     print("[grey37]CACHED[/grey37]")
             else:
-                acompletion_call = (
-                    self.async_client.completions.create
-                )
+                acompletion_call = self.async_client.completions.create
                 # If it's not in the cache, call the API
                 result = await acompletion_call(**kwargs)
                 self._cache_store(hashed_key, result.model_dump())
@@ -926,7 +921,6 @@ class OpenAIGPT(LanguageModel):
             and not self.is_openai_chat_model()
             and not self.is_openai_completion_model()
         ):
-
             if isinstance(messages, str):
                 messages = [
                     LLMMessage(
@@ -952,9 +946,7 @@ class OpenAIGPT(LanguageModel):
                 print("[grey37]CACHED[/grey37]")
         else:
             # If it's not in the cache, call the API
-            completion_call = (
-                self.client.chat.completions.create
-            )
+            completion_call = self.client.chat.completions.create
             if self.config.litellm and settings.debug:
                 kwargs["logger_fn"] = litellm_logging_fn
             result = completion_call(**kwargs)
@@ -975,9 +967,7 @@ class OpenAIGPT(LanguageModel):
             if settings.debug:
                 print("[grey37]CACHED[/grey37]")
         else:
-            acompletion_call = (
-                self.async_client.chat.completions.create
-            )
+            acompletion_call = self.async_client.chat.completions.create
             # If it's not in the cache, call the API
             result = await acompletion_call(**kwargs)
             if not self.get_stream():

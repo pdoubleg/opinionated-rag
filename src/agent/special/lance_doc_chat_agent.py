@@ -207,5 +207,3 @@ class LanceDocChatAgent(DocChatAgent):
         docs = self.vecdb._lance_result_to_docs(result)
         scores = [r["score"] for r in result.to_list()]
         return list(zip(docs, scores))
-    
-    

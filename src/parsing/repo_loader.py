@@ -553,7 +553,7 @@ class RepoLoader:
                 )
                 docs.extend(doc_parser.get_doc_chunks())
             else:
-                with open(file_path, "r", encoding='utf-8') as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     if lines is not None:
                         file_lines = list(itertools.islice(f, lines))
                         content = "\n".join(line.strip() for line in file_lines)

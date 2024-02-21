@@ -177,5 +177,3 @@ class LanceQueryPlanAgent(ChatAgent):
             response_tmpl.metadata.recipient = self.config.critic_name
             return response_tmpl
         return None
-    
-    

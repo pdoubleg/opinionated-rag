@@ -398,6 +398,7 @@ def first_non_null(series: pd.Series) -> Any | None:
             return item
     return None
 
+
 def document_compatible_dataframe(
     df: pd.DataFrame,
     content: str = "content",
@@ -440,7 +441,6 @@ def document_compatible_dataframe(
         actual_metadata += ["id"]
 
     return df, actual_metadata
-
 
 
 def dataframe_to_document_model(

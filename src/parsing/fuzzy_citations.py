@@ -11,10 +11,7 @@ client = instructor.patch(OpenAI())
 
 
 class Fact(BaseModel):
-    statement: str = Field(
-        ..., 
-        description="A legal statement, argument or assertion."
-    )
+    statement: str = Field(..., description="A legal statement, argument or assertion.")
     substring_phrase: List[str] = Field(
         ...,
         description="String quote long enough to evaluate the truthfulness of the fact",
@@ -109,5 +106,3 @@ def ask_ai(question: str, context: str) -> QuestionAnswer:
     return QuestionAnswer.from_response(
         completion, validation_context={"text_chunk": context}
     )
-
-
