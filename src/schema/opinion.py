@@ -78,6 +78,4 @@ class Opinion(BaseModel):
         None, description="Whether OCR was used to get this document content"
     )
     opinions_cited: Union[List[str], OpinionsCited] = None
-
-    def citing(self):
-        return set(self.citing_cases)
+    

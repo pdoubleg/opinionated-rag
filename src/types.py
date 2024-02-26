@@ -11,6 +11,24 @@ Embeddings = List[Embedding]
 EmbeddingFunction = Callable[[List[str]], Embeddings]
 
 
+class SEARCH_TYPES:
+    OPINION = "o"
+    RECAP = "r"
+    DOCKETS = "d"
+    ORAL_ARGUMENT = "oa"
+    PEOPLE = "p"
+    PARENTHETICAL = "pa"
+    NAMES = (
+        (OPINION, "Opinions"),
+        (RECAP, "RECAP"),
+        (DOCKETS, "RECAP Dockets"),
+        (ORAL_ARGUMENT, "Oral Arguments"),
+        (PEOPLE, "People"),
+        (PARENTHETICAL, "Parenthetical"),
+    )
+    ALL_TYPES = [OPINION, RECAP, ORAL_ARGUMENT, PEOPLE]
+    
+
 class Entity(str, Enum):
     """
     Enum for the different types of entities that can respond to the current message.
@@ -33,9 +51,7 @@ class DocMetaData(BaseModel):
 
     def dict_bool_int(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
         """
-        Special dict method to convert bool fields to int, to appease some
-        downstream libraries,  e.g. Chroma which complains about bool fields in
-        metadata.
+        Convert bool fields to int, to appease downstream libraries.
         """
         original_dict = super().model_dump(*args, **kwargs)
 
@@ -80,6 +96,5 @@ class Document(BaseModel):
             return self._unique_hash_id()
 
     def __str__(self) -> str:
-        # TODO: make metadata a pydantic model to enforce "source"
         self.metadata.model_dump_json()
         return f"{self.content} {self.metadata.model_dump_json()}"

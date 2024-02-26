@@ -5,8 +5,7 @@ import numpy as np
 import spacy
 import pandas as pd
 import eyecite
-from eyecite import get_citations, annotate_citations
-from eyecite.models import CitationBase, CaseCitation
+from eyecite.models import CitationBase, CaseCitation, FullCaseCitation
 from citeurl import Citator, insert_links
 
 from src.types import Document
@@ -16,6 +15,7 @@ def count_citations(texts: str) -> int:
     all_citations = []
     for text in texts:
         citations = eyecite.get_citations(text)
+        citations = [c for c in citations if isinstance(c, FullCaseCitation)]
         all_citations.extend(citations)
     return Counter(all_citations)
 
@@ -281,9 +281,9 @@ def make_annotations(
 def create_annotated_text(text: str) -> str:
     if text is np.nan:
         return np.nan
-    citations = get_citations(text)
+    citations = eyecite.get_citations(text)
     annotations = make_annotations(citations)
-    annotated_text_ = annotate_citations(text, annotations)
+    annotated_text_ = eyecite.annotate_citations(text, annotations)
     annotated_text = insert_links(annotated_text_, ignore_markup=False)
     return annotated_text
 

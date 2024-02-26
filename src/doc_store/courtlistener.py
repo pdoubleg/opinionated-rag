@@ -1,120 +1,32 @@
 import os
+from dotenv import load_dotenv
+from pydantic import AnyUrl, BaseModel, ConfigDict, Field, root_validator, validator
 import requests
 import json
+from dateutil import parser
 from devtools import pprint
 from html2text import html2text
 from pandas import DataFrame
-from typing import Optional, Union, List, Set
-from pydantic import BaseModel, ConfigDict, Field, AnyUrl
+from typing import Optional, Union, List, Set, Dict, Any
+from abc import ABC, abstractmethod
+from datetime import datetime
+from src.doc_store.base import LegalDataSource
+from src.doc_store.utils import (
+    get_chain, 
+    safe_eager_map, 
+    safe_merge, 
+    session_builder, 
+    disassemble,
+)
 
-from opinion import Opinion
-from docket import Docket
-
-
-def request_builder(baseurl, baseparams):
-    """
-    Builds a request function for making API calls.
-
-    Args:
-        baseurl (str): The base URL for the API.
-        baseparams (dict): The base parameters to include in every request.
-
-    Returns:
-        function: A configured request function.
-    """
-
-    def request(endpoint="", headers={}, parameters=baseparams):
-        """
-        Makes an API request.
-
-        Args:
-            endpoint (str): The API endpoint to request.
-            headers (dict): Additional headers to include in the request.
-            parameters (dict): Additional parameters to include in the request.
-
-        Returns:
-            dict: The JSON response from the API.
-        """
-        if endpoint.startswith("https://"):
-            ep = endpoint
-        else:
-            ep = baseurl + endpoint
-        h = safe_merge({}, headers)
-        p = safe_merge({}, parameters)
-        result = requests.get(ep, headers=h, params=p)
-        result.raise_for_status()
-        return result.json()
-
-    return request
+from src.schema.docket import Docket
+from src.types import SEARCH_TYPES
 
 
-def session_builder(selfvar, baseurl, baseparams={}):
-    """
-    Builds and initializes a session for making API requests.
+COURTLISTENER_BASE_URL = "https://www.courtlistener.com/api/rest/v3/"
+COURTLISTENER_API_KEY = os.getenv("COURTLISTENER_API_KEY")
 
-    Args:
-        selfvar: The instance of the class that will use the session.
-        baseurl (str): The base URL for the API.
-        baseparams (dict, optional): The base parameters to include in every request. Defaults to {}.
-    """
-    selfvar.request = request_builder(baseurl, baseparams)
-
-
-def get_chain(source: dict, alternatives: list) -> any:
-    """
-    Iterates through a list of alternative keys and returns the value from the source dictionary for the first key that exists and has a truthy value.
-
-    Args:
-        source (dict): The dictionary to search through.
-        alternatives (list): A list of keys to look for in the source dictionary.
-
-    Returns:
-        any: The value from the source dictionary corresponding to the first key found in alternatives that has a truthy value, or None if none are found.
-    """
-    for a in alternatives:
-        if a in source and source[a]:
-            return source[a]
-    return None
-
-
-def pretty_dict(some_dictionary):
-    return json.dumps(some_dictionary, sort_keys=True, indent=4)
-
-
-def safe_merge(d1: dict, d2: dict) -> dict:
-    """
-    Merges two dictionaries into a new dictionary. If a key exists in both dictionaries, the value from the second dictionary is used.
-    If a key's value is falsy in the second dictionary but truthy in the first, the value from the first dictionary is used.
-    If a key's value is falsy in both dictionaries, None is assigned to that key in the result.
-
-    Args:
-        d1 (dict): The first dictionary.
-        d2 (dict): The second dictionary, whose values take precedence over values from the first dictionary.
-
-    Returns:
-        dict: A new dictionary containing the merged key-value pairs.
-    """
-    keys = set(d1.keys()).union(set(d2.keys()))
-    result = {}
-    for k in keys:
-        if k in d2 and d2[k]:
-            result.update({k: d2[k]})
-        elif k in d1 and d1[k]:
-            result.update({k: d1[k]})
-        else:
-            result.update({k: None})
-    return result
-
-
-def safe_eager_map(func, l):
-    if l:
-        return list(map(func, l))
-    return []
-
-
-def disassemble(resource_url):
-    chunks = resource_url.split("/")
-    return {"endpoint": chunks[-3], "identifier": chunks[-2]}
+load_dotenv()
 
 
 class Caselist(object):
@@ -184,24 +96,36 @@ class Opinion(BaseModel):
     opinions_cited: Union[List[str], OpinionsCited] = None
     download_url: Optional[str] = None
 
-    def __init__(self, api_data: dict, name: str, **data):
+    def __init__(self, api_data: dict, **data):
         super().__init__(**data)
-        self.case_name = name
+        self.case_name = get_chain(
+            api_data, ["case_name", "case_name_full", "caseName"]
+        )
         self.html = get_chain(
-            api_data, ["html", "html_columbia", "html_lawbox", "html_with_citations"]
+            api_data,
+            [
+                "html_with_citations",
+                "html_columbia",
+                "html_lawbox",
+                "xml_harvard",
+                "html",
+            ],
         )
         self.text = api_data.get("plain_text")
         self.citing_cases = safe_eager_map(
             lambda x: disassemble(x)["identifier"], api_data.get("opinions_cited", [])
         )
-        self.markdown = html2text(self.html) if self.html else ""
+        if self.html:
+            self.markdown = html2text(self.html)
+        else:
+            self.markdown = ""
 
     def citing(self) -> Set[str]:
         """Returns a set of citing cases."""
         return set(self.citing_cases)
 
     def __str__(self):
-        return pretty_dict(self.__dict__)
+        return str(self.model_dump_json(indent=4))
 
 
 class Case(object):
@@ -210,14 +134,13 @@ class Case(object):
         self.citation_count = get_chain(api_data, ["citation_count", "citeCount"])
         self.citations = api_data.get("citation")
         self.court = get_chain(
-            api_data, ["court", "court_exact", "court_id", "court_citation_string"]
+            api_data, ["court_citation_string", "court_exact", "court", "court_id"]
         )
         if "opinions" in api_data and api_data["opinions"]:
-            self.opinions = [
-                Opinion(op, self.name, **op) for op in api_data["opinions"]
-            ]
+            self.opinions = [Opinion(op, **op) for op in api_data["opinions"]]
         else:
             self.opinions = []
+
         self.opinion_shape = {0: None, 1: "singleton"}.get(len(self.opinions), "list")
         self.date = get_chain(api_data, ["date_filed", "dateFiled"])
         self.people = {
@@ -230,8 +153,12 @@ class Case(object):
         self.courtlistener_docket = api_data.get("docket")
         self.docket = Docket(**api_data)
 
+    @property
+    def cite_string(self):
+        return ", ".join(self.citations)
+
     def __repr__(self):
-        return "<lawpy Case, " + self.name + ">"
+        return "<Case Name: " + self.name + ">"
 
     def basicdict(self):
         return {key: val for key, val in self.__dict__.items() if key != "opinions"}
@@ -242,7 +169,7 @@ class Case(object):
         return gathered
 
     def __str__(self):
-        return pretty_dict(self.gather())
+        return str(self.gather())
 
     def flatten(self):
         if self.opinion_shape:
@@ -260,19 +187,46 @@ class Case(object):
         return set([]).union(*[x.citing() for x in self.opinions])
 
 
-class CourtListener(object):
+class CourtListenerCaseDataSource(LegalDataSource):
     def __init__(self):
-        session_builder(self, "https://www.courtlistener.com/api/rest/v3/", {})
+        session_builder(
+            self,
+            "COURTLISTENER_API_KEY",
+            "https://www.courtlistener.com/api/rest/v3/",
+            "Authorization",
+            "Token ",
+        )(self)
 
     def options(self, endpoint="", headers={}):
-        ep = "https://www.courtlistener.com/api/rest/v3/" + endpoint
-        h = {}
+        ep = COURTLISTENER_BASE_URL + endpoint
+        h = {"Authorization": f"Token {COURTLISTENER_API_KEY}"}
         h = safe_merge(h, headers)
-        h = safe_merge(h, self.auth_header)
         return requests.options(ep, headers=h).json()
 
     def find_cite(self, cite):
-        return self.request("search/", parameters={"citation": cite})
+        result = self.request("search/", parameters={"citation": cite})
+        return result["results"]
+
+    def find_case_id(self, case_id):
+        result = self.request("search/", parameters={"id": case_id})
+        return result["results"]
+
+    def get_forward_cites_from_id(self, case_id: int):
+        """
+        Calls Court Listener's front end citation lookup engine to search all records for
+            a given case id. Note that the header is set to "Presidential=on" for the "status" filter.
+            This means the results will not contain any non-published records.
+        """
+        ep = f"https://www.courtlistener.com/api/rest/v3/search/?q=cites%3A({case_id})&type=o&order_by=dateFiled%20asc&stat_Precedential=on"
+        h = {"Authorization": f"Token {os.getenv('COURTLISTENER_API_KEY')}"}
+        cites_from_id = requests.get(ep, headers=h).json()
+        forward_citations = []
+        for i in range(len(cites_from_id["results"])):
+            search_result_id = cites_from_id["results"][i]["id"]
+            serch_result_bluebook = self.get_bluebook_citation(case_data=cites_from_id["results"][i])
+            results = (search_result_id, serch_result_bluebook)
+            forward_citations.append(results)
+        return forward_citations
 
     def extract_case_searches(self, searchres):
         cases = []
@@ -290,13 +244,13 @@ class CourtListener(object):
             cases.append(bigdict)
         return Caselist([Case(x) for x in cases])
 
-    def search(self, search_header, noisy=False):
+    def search(self, search_header, verbose=True):
         current = self.request("search/", parameters=search_header)
         reslist = []
         while True:
             reslist = reslist + current["results"]
             if current["next"]:
-                if noisy:
+                if verbose:
                     print("requesting: " + current["next"])
                 current = self.request(current["next"])
             else:
@@ -309,8 +263,17 @@ class CourtListener(object):
     def fetch_cases_by_judge(self, judge):
         return self.search({"judge": judge})
 
-    def fetch_cases_by_id(self, id):
-        return self.search({"type": "o", "q": "id:{}".format(id)})
+    def fetch_case(self, case_id: int):
+        """
+        Runs id-based search for opinions.
+
+        Args:
+            id (int): The id of the opinion to search for
+
+        Returns:
+            Caselist: A data model for a list of "cases"
+        """
+        return self.search({"type": SEARCH_TYPES.OPINION, "q": "id:{}".format(case_id)})
 
     def fetch_cases_cited_by(
         self, c, depth=1
@@ -321,7 +284,7 @@ class CourtListener(object):
         fetched = set()
         while depth > 0:
             for c in tofetch:
-                thesecases = self.fetch_cases_by_id(c)
+                thesecases = self.fetch_case(c)
                 cases.add(thesecases)
                 newtofetch.update(thesecases.citing())
                 fetched.add(c)
@@ -329,38 +292,49 @@ class CourtListener(object):
             depth -= 1
         return cases
 
+    def fetch_forward_citations(self, case_id: int):
+        """
+        Fetches forward citations for a given case ID.
+        """
+        cases = []
+        case_list = self.get_forward_cites_from_id(case_id)
+
+        for i in range(len(case_list)):
+            case = self.fetch_case(case_list[i])
+            cases.append(case)
+
+        return cases
+
+    def get_bluebook_citation(
+        self, 
+        case_id: Optional[str] = None,
+        case_data: Optional[Dict[str, Any]] = None,
+        ) -> str:
+        if not case_data:
+            case_data = self.fetch_case(case_id)
+            gathered_result = case_data[0].gather()
+            case_name = gathered_result["docket"].case_name_short
+            reporter_info = gathered_result["citations"][0]
+            court = gathered_result["court"]
+            decision_date = gathered_result["date"][:4]
+        else:
+            case_name = case_data["caseNameShort"]
+            reporter_info = case_data["citation"][0]
+            court = case_data["court_citation_string"]
+            decision_date = parser.isoparse(case_data["dateFiled"]).strftime("%Y")
+        return f"{case_name}, {reporter_info} ({court} {decision_date})"
+
 
 def main():
     # Example usage of the courtlistener class and its methods
-    courtlistener_api = CourtListener()
+    courtlistener_api = CourtListenerCaseDataSource()
     citation = "347 U.S. 483"  # Example citation
-    cases = courtlistener_api.fetch_cases_by_id(107423)
-    print(type(cases.cases[0]))
-    print((cases.cases[0].opinions[0]))
-
-    # Read the JSON back from the file and convert it into an Opinion object
-    # with open("data/cases_output.json", "r") as f:
-    #     opinion_data = json.load(f)
-
-    # opinion = Opinion(json.loads(opinion_data), "test", **json.loads(opinion_data))
-    # print(opinion)
-
-    # Fetch cases by ID
-    # case_id = "12345"  # Example case ID
-    # cases_by_id = courtlistener_api.fetch_cases_by_id(case_id)
-    # print("Cases by ID:\n", cases_by_id)
-
-    # # Convert cases to pandas DataFrame
-    # cases_df = cases_by_cite.to_pandas()
-    # print("Cases DataFrame:\n", cases_df.head())
+    # Sample case id: 107423
+    cases = courtlistener_api.fetch_cases_by_cite(citation)
+    print(cases[0].citing())
+    cited_by = courtlistener_api.fetch_cases_cited_by(cases)
+    print(cited_by)
 
 
 if __name__ == "__main__":
     main()
-
-
-# need to add more data in case and opinion objects.  also for stuff that might return either a singleton or a list I should just have getter functions that either map over the list or just dispatch for a single, so that it's easy to get results and reports.
-
-# need to provide a facility to dump all cases straight to JSON
-
-# session can have a method to grab cited and such, and pass it either a case or a caselist.  or even a opinion if you really want.  methods on each will return a set.
