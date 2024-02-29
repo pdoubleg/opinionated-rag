@@ -20,52 +20,6 @@ def count_citations(texts: str) -> int:
     return Counter(all_citations)
 
 
-def get_citation_context_sents(
-    text: str,
-    citation: str,
-    sentences_before: int = 2,
-    sentences_after: int = 2,
-) -> str:
-    """
-    Finds a citation in text and returns the sentence or sentences surrounding it.
-    Args:
-        text (str): The text to search.
-        citation (str): The citation to find.
-        sentences_before (int): n sentences to extract before citation sentence.
-        sentences_after (int): n sentences to extract after citation sentence.
-
-    Returns:
-        sentences (str): The extracted sentences.
-    """
-    # Find citations using eyecite
-    found_citations = eyecite.get_citations(text)
-    # Tokenize text into sentences using spaCy
-    nlp = spacy.load("en_core_web_sm")
-    doc = nlp(text)
-    sentences = list(doc.sents)
-    # Iterate over citations and sentences to find the match
-    for cit in found_citations:
-        if cit.matched_text() == citation:
-            cit_span = cit.full_span()
-            # Find the sentence index that contains the citation
-            cit_sentence_idx = None
-            for i, sentence in enumerate(sentences):
-                if (
-                    sentence.start_char <= cit_span[0]
-                    and sentence.end_char >= cit_span[1]
-                ):
-                    cit_sentence_idx = i
-                    break
-            if cit_sentence_idx is not None:
-                # Extract the specified number of sentences before and after the citation
-                start_idx = max(cit_sentence_idx - sentences_before, 0)
-                end_idx = min(cit_sentence_idx + sentences_after + 1, len(sentences))
-                # Joining the extracted sentences
-                context = " ".join(sentences[i].text for i in range(start_idx, end_idx))
-                return context
-
-    return None
-
 
 def get_top_citations(df, text_column, top_n):
     """
@@ -145,15 +99,28 @@ def create_citation_lookup_table(
     return citation_df
 
 
-def get_citation_context_words(
+def get_citation_context(
     text: str,
     citation: str,
     words_before: int | None = 1000,
     words_after: int | None = 1000,
 ) -> str:
+    """
+    Simplified approach to find a citation in text and return the context around it, with the start and end positions
+    adjusted to complete sentences, while trying to keep the original functionality.
+
+    Args:
+        text (str): The text to search.
+        citation (str): The citation to find.
+        words_before (int | None): Maximum number of words to include before the citation. If None, defaults to 1000.
+        words_after (int | None): Maximum number of words to include after the citation. If None, defaults to 1000.
+
+    Returns:
+        str: The context around the citation, adjusted to complete sentences.
+    """
     if words_after is None and words_before is None:
-        # return entire text since we're not asked to return a bounded context
-        return text, 0, 0
+        # Return entire text since we're not asked to return a bounded context
+        return text
 
     found_citations = eyecite.get_citations(text)
 
@@ -161,25 +128,35 @@ def get_citation_context_words(
         if cit.corrected_citation() == citation:
             match = cit.matched_text()
             sequence_matcher = difflib.SequenceMatcher(None, text, match)
-            match = sequence_matcher.find_longest_match(0, len(text), 0, len(match))
+            match_info = sequence_matcher.find_longest_match(0, len(text), 0, len(match))
 
-            if match.size == 0:
-                return "", 0, 0
+            if match_info.size == 0:
+                return ""
 
             segments = text.split()
             n_segs = len(segments)
 
-            start_segment_pos = len(text[: match.a].split())
+            start_segment_pos = len(text[:match_info.a].split())
 
             words_before = words_before or n_segs
             words_after = words_after or n_segs
             start_pos = max(0, start_segment_pos - words_before)
-            end_pos = min(
-                len(segments), start_segment_pos + words_after + len(citation.split())
-            )
-            result = " ".join(segments[start_pos:end_pos]), start_pos, end_pos
+            end_pos = min(n_segs, start_segment_pos + words_after + len(citation.split()))
 
-    return result[0]
+            context = " ".join(segments[start_pos:end_pos])
+
+            # Use spaCy to adjust to complete sentences
+            nlp = spacy.load("en_core_web_sm")
+            doc = nlp(context)
+            sentences = list(doc.sents)
+
+            # Drop the first and last sentences if they are likely incomplete
+            adjusted_context = " ".join(sentence.text for sentence in sentences[1:-1])
+
+            return adjusted_context
+
+    # If the citation is not found, return an empty string
+    return ""
 
 
 def resolve_citations(citations: List[CitationBase]) -> List[str]:
@@ -366,7 +343,7 @@ def extract_citation_with_context_from_docs(
     return new_docs
 
 
-def get_citation_context(
+def get_citation_context_df(
     df: pd.DataFrame,
     text_column: str,
     id_column: str,

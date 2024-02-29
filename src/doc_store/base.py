@@ -61,7 +61,7 @@ def analyze_citation(
                 "role": "user",
                 "content": f"Your task focuses on citation: **{cited_opinion_bluebook_citation}**",
             },
-            {"role": "user", "content": f"Here is the context: {excerpt}"},
+            {   "role": "user", "content": f"Here is the context: {excerpt}"},
         ],
     )
     
@@ -193,14 +193,6 @@ class LegalDocument(BaseModel):
             self._data = self.data_source.fetch_case(self.case_id)
         return self._data
     
-    def has_bad_footnotes(self):
-        pq = PyQuery(self.content)
-        self_links = [a for a in pq("a") if a.attrib.get("href", "").startswith("#")]
-        for sl in self_links:
-            target_id = sl.attrib.get("href")[1:]
-            if not pq(f'[id="{target_id}"]'):
-                return True
-        return False
 
     def get_bluebook_citation(self) -> str:
         return self.data_source.get_bluebook_citation(self.case_id)

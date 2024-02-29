@@ -1,16 +1,79 @@
-from datetime import datetime
+from datetime import date, datetime
 import os
 import re
+from eyecite import get_citations
+from eyecite.models import CaseCitation
+from markdown import markdown
+from bs4 import BeautifulSoup
+from typing import Any, Callable, Dict, List, Optional, Union
+from dotenv import load_dotenv
 import pandas as pd
 import requests
+import requests_cache
+from src.schema.citations import CAPCitation
 from src.parsing.utils import clean_whitespace
 from src.utils.citations import create_annotated_text
 
+load_dotenv()
+
+
+def normalize_case_cite(cite: Union[str, CaseCitation, CAPCitation]) -> str:
+    """Get just the text that identifies a citation."""
+    if isinstance(cite, CAPCitation):
+        return cite.cite
+    if isinstance(cite, str):
+        possible_cites = list(get_citations(cite))
+        bad_cites = []
+        for possible in possible_cites:
+            if isinstance(possible, CaseCitation):
+                return possible.corrected_citation()
+            bad_cites.append(possible)
+        error_msg = f"Could not locate a CaseCitation in the text {cite}."
+        for bad_cite in bad_cites:
+            error_msg += (
+                f" {bad_cite} was type {bad_cite.__class__.__name__}, not CaseCitation."
+            )
+
+        raise ValueError(error_msg)
+    return cite.corrected_citation()
+
+def markdown_to_text(markdown_string: str) -> str:
+    """Converts a markdown string to plain text.
+    
+    Args:
+        markdown_string (str): The markdown string to convert.
+    
+    Returns:
+        str: The converted plain text string.
+    """
+    # Convert markdown to HTML
+    html = markdown(markdown_string)
+    
+    # Use BeautifulSoup to extract text from the HTML
+    soup = BeautifulSoup(html, "html.parser")
+    text = soup.get_text()
+    
+    return text
 
 vs_check = re.compile(" [vV][sS]?[.]? ")
 
 
-def truncate_name(case_name):
+def truncate_name(case_name: str) -> str:
+    """
+    Truncates a case name to a maximum length, splitting it around a 'v.' if present.
+
+    If the case name contains a 'v.' (indicating a versus), it splits the name into two parts,
+    truncates each part to a maximum length of 40 characters, and then rejoins them with ' v. '.
+    If the case name does not contain a 'v.', it truncates the entire name to a maximum of 80 characters.
+    If the truncated part exceeds its maximum length, '...' is appended to indicate truncation.
+
+    Args:
+        case_name: The full name of the case to be truncated.
+
+    Returns:
+        The truncated case name.
+
+    """
     max_part_length = 40
     parts = vs_check.split(case_name)
     if len(parts) != 2:
@@ -26,15 +89,19 @@ def truncate_name(case_name):
     return part_a + " v. " + part_b
 
 
-def parse_cap_decision_date(decision_date_text):
+def parse_cap_decision_date(decision_date_text: str) -> Optional[date]:
     """
-    Parse a CAP decision date string into a datetime object.
+    Parses a decision date string into a date object.
 
-    >>> assert parse_cap_decision_date('2019-10-27') == date(2019, 10, 27)
-    >>> assert parse_cap_decision_date('2019-10') == date(2019, 10, 1)
-    >>> assert parse_cap_decision_date('2019') == date(2019, 1, 1)
-    >>> assert parse_cap_decision_date('2019-02-29') == date(2019, 2, 1)  # non-existent day of month
-    >>> assert parse_cap_decision_date('not a date') is None
+    Attempts to parse the date string in the format 'YYYY-MM-DD'. If the day is out of range for the month,
+    it retries without the day part ('YYYY-MM'). If that still fails, it tries with just the year ('YYYY').
+    If all parsing attempts fail, it returns None.
+
+    Args:
+        decision_date_text: A string representing the decision date in 'YYYY-MM-DD', 'YYYY-MM', or 'YYYY' format.
+
+    Returns:
+        A date object representing the decision date, or None if parsing fails.
     """
     try:
         try:
@@ -53,24 +120,18 @@ def parse_cap_decision_date(decision_date_text):
         return None
 
 
-def looks_like_citation(s):
+def looks_like_citation(s: str) -> bool:
     """
-    Return True if string s looks like a case citation (starts and stops with digits).
+    Determines if a given string looks like a legal citation.
 
-    >>> all(looks_like_citation(s) for s in [
-    ...     "123 Mass. 456",
-    ...     "123-mass-456",
-    ...     "123 anything else here 456",
-    ...     1234567890,  # Example integer input
-    ... ])
-    True
-    >>> not any(looks_like_citation(s) for s in [
-    ...     "123Mass.456",
-    ...     "123 Mass.",
-    ...     123,  # Example integer that should not match
-    ...     "123456",  # Example of an all-digit input that should return False
-    ... ])
-    True
+    This function first checks if the input string is composed entirely of digits, in which case it is likely an ID rather than a citation.
+    If not, it proceeds to check the string against a regular expression pattern that matches typical legal citation formats.
+
+    Args:
+        s: A string to be checked for resemblance to a legal citation.
+
+    Returns:
+        A boolean value indicating whether the string looks like a legal citation.
     """
     s = str(s)  # Convert input to string to ensure compatibility with regex
     # Check if the input is composed entirely of digits
@@ -81,8 +142,34 @@ def looks_like_citation(s):
     return bool(re.match(r"\d+(\s+|-).*(\s+|-)\d+$", s))
 
 
-def looks_like_case_law_link(s):
+def looks_like_case_law_link(s: str) -> bool:
+    """
+    Determines if a given string is a link to a case law on the cite.case.law website.
+
+    This function checks if the input string matches the pattern of a URL pointing to a resource on the cite.case.law domain.
+
+    Args:
+        s: A string to be checked for being a case law link.
+
+    Returns:
+        A boolean value indicating whether the string is a case law link.
+    """
     return bool(re.match(r"^https?://cite\.case\.law(/[/0-9a-zA-Z_-]*)$", s))
+
+
+def looks_like_court_listener_link(s: str) -> bool:
+    """
+    Determines if a given string is a link to a case or document on the Court Listener website.
+
+    This function checks if the input string matches the pattern of a URL pointing to a resource on the Court Listener domain.
+
+    Args:
+        s (str): A string to be checked for being a Court Listener link.
+
+    Returns:
+        bool: A boolean value indicating whether the string is a Court Listener link.
+    """
+    return bool(re.match(r"^https?://www\.courtlistener\.com(/[/0-9a-zA-Z_-]*)?$", s))
 
 
 def prep_text(df: pd.DataFrame):
@@ -103,9 +190,9 @@ def make_pretty_strings(df: pd.DataFrame):
     return formatted_string
 
 
-def get_chain(source: dict, alternatives: list) -> any:
+def iter_get(source: dict, alternatives: list) -> any:
     """
-    Iterates through a list of alternative keys and returns the value from the source dictionary for the first key that exists and has a truthy value.
+    Iterates through a list of alternative keys and returns the value from the source dictionary for the **first** key that exists and has a truthy value.
 
     Args:
         source (dict): The dictionary to search through.
@@ -120,18 +207,46 @@ def get_chain(source: dict, alternatives: list) -> any:
     return None
 
 
-def safe_merge(d1: dict, d2: dict) -> dict:
+def safe_eager_map(func: Callable, l: List[Any]) -> List[Any]:
     """
-    Merges two dictionaries into a new dictionary. If a key exists in both dictionaries, the value from the second dictionary is used.
-    If a key's value is falsy in the second dictionary but truthy in the first, the value from the first dictionary is used.
-    If a key's value is falsy in both dictionaries, None is assigned to that key in the result.
+    Applies a function to all elements of a list if the list is not empty, returning a new list with the results.
 
     Args:
-        d1 (dict): The first dictionary.
-        d2 (dict): The second dictionary, whose values take precedence over values from the first dictionary.
+        func (Callable): The function to apply to each element of the list.
+        l (List[Any]): The list of elements to which the function will be applied.
 
     Returns:
-        dict: A new dictionary containing the merged key-value pairs.
+        List[Any]: A list containing the results of applying the function to each element of the input list, or an empty list if the input list is empty.
+    """
+    if l:
+        return list(map(func, l))
+    return []
+
+
+def disassemble_url(resource_url: str) -> dict:
+    """
+    Splits a resource URL into its endpoint and identifier components.
+
+    Args:
+        resource_url (str): The full URL of the resource.
+
+    Returns:
+        dict: A dictionary containing the 'endpoint' and 'identifier' extracted from the URL.
+    """
+    chunks = resource_url.split("/")
+    return {"endpoint": chunks[-3], "identifier": chunks[-2]}
+
+
+def safe_merge(d1: Dict[Any, Any], d2: Dict[Any, Any]) -> Dict[Any, Any]:
+    """
+    Merges two dictionaries, giving preference to non-null values in the second dictionary.
+
+    Args:
+        d1: The first dictionary.
+        d2: The second dictionary.
+
+    Returns:
+        A dictionary containing the merged key-value pairs from both dictionaries.
     """
     keys = set(d1.keys()).union(set(d2.keys()))
     result = {}
@@ -145,32 +260,39 @@ def safe_merge(d1: dict, d2: dict) -> dict:
     return result
 
 
-def safe_eager_map(func, l):
-    if l:
-        return list(map(func, l))
-    return []
+def request_builder(
+    auth_header: Dict[str, str],
+    baseurl: str,
+    baseparams: Dict[str, str],
+    apikey_in_params: bool,
+) -> Callable:
+    """
+    Constructs a request function configured with base parameters and authentication headers.
 
+    Args:
+        auth_header: A dictionary containing authentication headers.
+        baseurl: The base URL for the API requests.
+        baseparams: Base parameters to be included in every request.
+        apikey_in_params: A boolean indicating if the API key should be included in the parameters instead of the header.
 
-def disassemble(resource_url):
-    chunks = resource_url.split("/")
-    return {"endpoint": chunks[-3], "identifier": chunks[-2]}
-
-
-def request_builder(auth_header, baseurl, baseparams, apikey_in_params):
-    def request(endpoint="", headers={}, parameters=baseparams):
+    Returns:
+        A function that takes an endpoint, headers, and parameters, then performs a GET request.
+    """
+    requests_cache.install_cache('api_cache', backend='sqlite', expire_after=3600)
+    def request(
+        endpoint: str = "",
+        headers: Dict[str, str] = {},
+        parameters: Dict[str, str] = baseparams,
+    ) -> Dict[str, Any]:
         if endpoint.startswith("https://"):
             ep = endpoint
         else:
             ep = baseurl + endpoint
-        h = {}
-        h = safe_merge(h, headers)
+        h = safe_merge(headers, auth_header)
         if apikey_in_params:
-            p = {}
-            p = safe_merge(p, parameters)
-            p = safe_merge(p, auth_header)
+            p = safe_merge(parameters, auth_header)
         else:
             p = parameters
-        h = safe_merge(h, auth_header)
         result = requests.get(ep, headers=h, params=p)
         result.raise_for_status()
         return result.json()
@@ -179,26 +301,46 @@ def request_builder(auth_header, baseurl, baseparams, apikey_in_params):
 
 
 def session_builder(
-    selfvar,
-    keyenv,
-    baseurl,
-    keyheader,
-    key_prefix="",
-    baseparams={},
-    apikey_in_params=False,
-):
-    def class_init(selfvar, api_key="ENV"):
-        if api_key == "ENV":
-            try:
-                selfvar.api_key = os.environ[keyenv]
-            except KeyError as e:
-                raise Exception(
-                    "API token is missing. Please set the {} environment variable or pass the token to the session constructor.".format(
-                        keyenv
-                    )
-                ) from e
-        else:
-            selfvar.api_key = api_key
+    selfvar: Any,
+    keyenv: str,
+    baseurl: str,
+    keyheader: str,
+    key_prefix: str = "",
+    baseparams: Dict[str, str] = {},
+    apikey_in_params: bool = False,
+) -> Callable:
+    """
+    Initializes the session with necessary configurations for making API requests.
+
+    Args:
+        selfvar: The instance of the class using this session builder.
+        keyenv: The name of the environment variable where the API key is stored.
+        baseurl: The base URL for the API requests.
+        keyheader: The header name where the API key should be included.
+        key_prefix: A prefix to be added before the API key in the header. Defaults to "".
+        baseparams: Base parameters to be included in every request. Defaults to {}.
+        apikey_in_params: Flag indicating if the API key should be included in the parameters instead of the header. Defaults to False.
+
+    Returns:
+        A function that initializes the class with API key and request builder.
+    """
+
+    def class_init(selfvar: Any, api_key: str = "ENV") -> None:
+        """
+        Inner function to initialize the class with API key and request builder.
+
+        Args:
+            selfvar: The instance of the class being initialized.
+            api_key: The API key to be used. If "ENV", it will try to get it from the environment variable. Defaults to "ENV".
+        """
+        selfvar.api_key = os.getenv(
+            keyenv, default=api_key if api_key != "ENV" else None
+        )
+        if selfvar.api_key is None:
+            raise Exception(
+                f"API token is missing. Please set the {keyenv} environment variable or pass the token to the session constructor."
+            )
+
         auth_header = {keyheader: key_prefix + selfvar.api_key}
         selfvar.request = request_builder(
             auth_header, baseurl, baseparams, apikey_in_params

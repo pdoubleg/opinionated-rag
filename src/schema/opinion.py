@@ -1,9 +1,24 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import Enum
 from typing import List, Optional, Union
 
 from pydantic import AnyUrl, BaseModel, Field, constr
+
+class OpinionType(Enum.enum):
+    COMBINED = "010combined"
+    UNANIMOUS = "015unamimous"
+    LEAD = "020lead"
+    PLURALITY = "025plurality"
+    CONCURRENCE = "030concurrence"
+    CONCUR_IN_PART = "035concurrenceinpart"
+    DISSENT = "040dissent"
+    ADDENDUM = "050addendum"
+    REMITTUR = "060remittitur"
+    REHEARING = "070rehearing"
+    ON_THE_MERITS = "080onthemerits"
+    ON_MOTION_TO_STRIKE = "090onmotiontostrike"
 
 
 class OpinionsCited(BaseModel):
