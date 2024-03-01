@@ -175,23 +175,37 @@ class Case(object):
         self.citation_network = {'cited_by': [], 'cites': []} 
 
     @property
-    def cite_string(self):
-        return ", ".join(self.citations)
-    
-    @property
-    def normalize_case_cite(self) -> str:
-        """Simplifies the function to return the first corrected citation found.
+    def cite_string(self) -> str:
+        """Generates a string representation of citations.
 
         Returns:
-            str: The corrected citation if found, otherwise raises a ValueError.
+            str: A string of citations separated by commas, or an empty string if no citations.
         """
-        cite = self.cite_string
-        if isinstance(cite, str):
-            for possible_cite in get_citations(cite):
-                if isinstance(possible_cite, CaseCitation):
-                    return possible_cite.corrected_citation()
-            raise ValueError(f"No CaseCitation found in the text: {cite}")
-        return cite.corrected_citation()
+        if isinstance(self.citations, list):
+            return ", ".join(self.citations)
+        elif isinstance(self.citations, str):
+            return self.citations
+        elif isinstance(self.citations, CAPCitation):
+            return str(self.citations)
+        elif isinstance(self.citations, CaseCitation):
+            return self.citations.corrected_citation()
+        return ""
+    
+    
+    # @property
+    # def normalize_case_cite(cite: Union[str, CaseCitation, CAPCitation]) -> str:
+    #     """Normalize a citation object or string."""
+    #     if isinstance(cite, CAPCitation):
+    #         return cite.cite
+    #     if isinstance(cite, str):
+    #         possible_cites = list(get_citations(cite))
+    #         bad_cites = []
+    #         for possible in possible_cites:
+    #             if isinstance(possible, CaseCitation):
+    #                 return possible.corrected_citation()
+    #             bad_cites.append(possible)
+    #         return ""
+    #     return cite.corrected_citation()
     
     @property
     def name_short(self):
@@ -200,7 +214,7 @@ class Case(object):
     @property
     def bluebook_citation(self):
         name_short = self.name_short
-        normalized_cite = self.normalize_case_cite
+        normalized_cite = self.cite_string
         court = self.court
         year = self.publication_year
         return f"{name_short}, {normalized_cite} ({court} {year})"
@@ -256,7 +270,7 @@ class CourtListenerCaseDataSource(LegalDataSource):
         result = self.request("search/", parameters={"id": case_id})
         return result["results"]
 
-    def get_forward_cites_from_id(self, case_id: int) -> List[Tuple[int, str]]:
+    def get_forward_cites_from_id(self, case_id: int) -> List[int]:
         """
         Calls Court Listener's front end citation lookup engine to search all records for
             a given case id. Note that the header is set to "Presidential=on" for the "status" filter.
@@ -266,8 +280,7 @@ class CourtListenerCaseDataSource(LegalDataSource):
             case_id (int): The unique identifier for the case to find forward citations for.
 
         Returns:
-            List[Tuple[int, str]]: A list of tuples containing the case ID and its Bluebook citation.
-                                    Errors in retrieving the Bluebook citation result in the case being excluded.
+            List[int]: A list of ids for cases that cite the target case. 
         """
         ep = f"https://www.courtlistener.com/api/rest/v3/search/?q=cites%3A({case_id})&type=o&order_by=dateFiled%20asc&stat_Precedential=on"
         h = {"Authorization": f"Token {os.getenv('COURTLISTENER_API_KEY')}"}
@@ -330,33 +343,48 @@ class CourtListenerCaseDataSource(LegalDataSource):
         return self.search({"type": SEARCH_TYPES.OPINION, "q": "id:{}".format(case_id)})
 
     def fetch_cases_cited_by(
-        self, c, depth=1
-    ):  # can take an Opinion, Case, or Caselist object.
+        self, c, depth: int = 1, verbose: bool = True
+    ) -> Caselist:
+        """
+        Fetches cases cited by a given case, opinion, or caselist, exploring up to a specified depth.
+
+        Args:
+            c: Can be an Opinion, Case, or Caselist object.
+            depth (int): The depth to explore citations. Default is 1.
+            verbose (bool): If True, prints out ids as they are being fetched. Default is False.
+
+        Returns:
+            Caselist: A Caselist object containing all cases cited by the target case,
+                      explored up to the specified depth.
+        """
         cases = Caselist([])
         tofetch = frozenset(c.citing())
         newtofetch = set()
         fetched = set()
         while depth > 0:
             for cs in tofetch:
+                if verbose:
+                    print(f"Fetching case ID: {str(cs)}")
                 thesecases = self.fetch_case(cs)
                 cases.add(thesecases)
                 for case in thesecases.cases:
                     c.citation_network['cites'].append(case.id)
                     case.citation_network['cited_by'].append(c.id)
                 newtofetch.update(thesecases.citing())
-                fetched.add(c)
+                fetched.add(cs)
             tofetch = frozenset(newtofetch.difference(fetched))
             depth -= 1
         return cases
     
     
-    def fetch_forward_citations(self, case_id: int, depth: int = 1) -> Caselist:
+    def fetch_forward_citations(self, case_id: int, depth: int = 1, verbose: bool = True) -> Caselist:
         """
-        Fetches forward citations for a given case ID, exploring up to a specified depth.
+        Fetches forward citations for a given case ID, exploring up to a specified depth, with an option to print verbose output.
 
         Args:
             case_id (int): The ID of the case for which to fetch forward citations.
             depth (int): The depth to explore forward citations. Default is 1.
+            verbose (bool): If True, prints out ids as they are being fetched. Default is False.
 
         Returns:
             Caselist: A Caselist object containing all cases that cite the target case,
@@ -370,6 +398,8 @@ class CourtListenerCaseDataSource(LegalDataSource):
         while depth > 0:
             for cid in tofetch:
                 if cid not in fetched:
+                    if verbose:
+                        print(f"Fetching forward citation ID: {cid}")
                     thesecases = self.fetch_case(cid)
                     cases.add(thesecases)
                     for case in thesecases.cases:
@@ -396,17 +426,5 @@ class CourtListenerCaseDataSource(LegalDataSource):
         return f"{case_name}, {reporter_info} ({court} {decision_date})"
 
 
-def main():
-    # Example usage of the courtlistener class and its methods
-    courtlistener_api = CourtListenerCaseDataSource()
-    citation = "347 U.S. 483"  # Example citation
-    # Sample case id: 107423
-    cases = courtlistener_api.fetch_cases_by_cite(citation)
-    print(cases[0].citing())
-    cited_by = courtlistener_api.fetch_cases_cited_by(cases)
-    print(cited_by)
 
-
-if __name__ == "__main__":
-    main()
 

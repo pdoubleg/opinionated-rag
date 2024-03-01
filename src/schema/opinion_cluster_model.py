@@ -52,10 +52,6 @@ class Citation(BaseModel):
         Returns:
             float: A score representing the citation's order.
 
-        Example:
-            cs = Citation.objects.filter(cluster_id=222)
-            cs = sorted(cs, key=lambda c: c.sort_score)
-            This would sort the Citation items by their priority.
         """
         if self.type == Type.NEUTRAL:
             return 0
@@ -321,7 +317,7 @@ class OpinionCluster(BaseModel):
     docket_id: Optional[int | str] = None
     docket: Optional[str]
     sub_opinions: Optional[List[str]]
-    citations: List[Citation]
+    citations: Optional[str | Citation | List[Citation]]
     date_created: Optional[datetime] = Field(
         None, description="The moment when the item was created."
     )

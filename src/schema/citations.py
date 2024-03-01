@@ -6,6 +6,8 @@ from eyecite import get_citations
 from eyecite.models import CaseCitation
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from src.schema.opinion_cluster_model import Type
+
 
 class CAPCitation(BaseModel):
     """
@@ -27,12 +29,13 @@ class CAPCitation(BaseModel):
         None,
         description="CourtListener Citation.reporter",
     )
-    category: Optional[str] = None
-    case_ids: List[int] = []
-    type: Optional[str] = Field(
+    category: Optional[str | Type] = Field(
         None,
-        description="CourtListener OpinionCluster.precedential_status",
+        description="CAP `category` or Court Listener `type`",
+        alias="type",
     )
+    case_ids: List[int] = []
+
 
     @field_validator('cite', mode='before')
     def convert_cite_to_str(cls, v):

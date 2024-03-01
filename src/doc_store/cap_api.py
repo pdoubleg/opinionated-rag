@@ -139,7 +139,7 @@ class CAPClient:
                 cap_id (str): An identifier for an opinion in the Caselaw Access Project database.
 
             Returns:
-                List[str]: A list of citation strings that cited the input case id.
+                List[str]: A list of case ids that cited the input case id.
             """
 
             params: Dict[str, str] = {"cites_to": cap_id}

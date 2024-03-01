@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import datetime
+from datetime import date
 from typing import Any, List, Optional, Sequence, Union
 
-from pydantic import BaseModel, Field, HttpUrl, field_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 from html2text import html2text
 from eyecite.models import CaseCitation
 
@@ -92,10 +93,15 @@ class Opinion(BaseModel):
         author (str): Name of the judge who authored the opinion, if identified.
         text (str): The text of the opinion.
     """
+    model_config = ConfigDict(
+        extra="allow",
+        arbitrary_types_allowed=True,
+    )
 
     type: str = "majority"
     author: str = Field(None, description="Court Listener is Opinion.author_str")
     text: str = Field(..., description="Court Listener is Opinion.author_str")
+    is_html: Optional[bool] = False
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}(type="{self.type}", author="{self.author}")'
@@ -166,8 +172,11 @@ class Decision(BaseModel):
         last_updated (Optional[datetime.datetime]): The date when the record was last updated in CAP API.
         frontend_url (Optional[HttpUrl]): The URL to the decision in CAP's frontend.
     """
-
-    decision_date: datetime.date
+    model_config = ConfigDict(
+        extra="allow",
+        arbitrary_types_allowed=True,
+    )
+    decision_date: Optional[date] = None
     name: Optional[str] = None
     name_abbreviation: Optional[str] = None
     docket_num: Optional[str] = None
@@ -181,7 +190,7 @@ class Decision(BaseModel):
     jurisdiction: Optional[Jurisdiction] = None
     cites_to: Optional[Union[str, List[str], List[CAPCitation], Any]] = None
     id: Optional[int] = None
-    last_updated: Optional[datetime.datetime] = None
+    last_updated: Optional[date] = None
     frontend_url: Optional[HttpUrl] = None
 
     def __str__(self):
@@ -277,9 +286,16 @@ class Decision(BaseModel):
             attorneys_text = "; ".join(self.attorneys)
             text_parts.append(f"Attorneys: {attorneys_text}\n")
         # Judges
-        if hasattr(self.casebody.data, 'judges') and self.casebody.data.judges:
-            judges_text = "; ".join(self.casebody.data.judges)
-            text_parts.append(f"Judges: {judges_text}\n")
+        if hasattr(self.casebody.data, 'judges'):
+            judges = self.casebody.data.judges
+            if isinstance(judges, str):
+                judges_text = judges
+            elif isinstance(judges, list):
+                judges_text = "; ".join(judges)
+            else:
+                judges_text = ""
+            if judges_text:
+                text_parts.append(f"Judges: {judges_text}\n")
         # Opinions
         if hasattr(self.casebody.data, 'opinions') and self.casebody.data.opinions:
             for opinion in self.casebody.data.opinions:
@@ -304,6 +320,9 @@ class Decision(BaseModel):
         if isinstance(self.casebody.data, str):
             markdown_from_html_text = html2text(self.casebody.data)
             text = markdown_to_text(markdown_from_html_text)
+        if self.casebody.data.opinions[0].is_html:
+            markdown_from_html_text = html2text(self.casebody.data.opinions[0].text)
+            text = markdown_to_text(markdown_from_html_text) 
         else:
             text = (
                 self.casebody.data.opinions[0].text
