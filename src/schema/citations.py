@@ -52,7 +52,7 @@ class CAPCitation(BaseModel):
         return v
     
     def __str__(self) -> str:
-        return f"Citation to {self.cite}"
+        return f"{self.cite}"
     
     
 from typing import List, Optional, Union

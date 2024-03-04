@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import datetime
 from datetime import date
-from typing import Any, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
+import eyecite
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_serializer, field_validator
 from html2text import html2text
 from eyecite.models import CaseCitation
 
@@ -36,6 +37,10 @@ class ReporterVolume(BaseModel):
         description="The URL pointing to this volume's information in the Case Access Project API, derived from OpinionCluster.absolute_url and a base URL.",
     )
     full_name: str
+    
+    @field_serializer('url')
+    def serialize_reporter_url(self, url: HttpUrl, _info):
+        return str(url)
 
 
 class Court(BaseModel):
@@ -56,6 +61,9 @@ class Court(BaseModel):
     whitelisted: Optional[bool] = None
     name_abbreviation: Optional[str] = None
 
+    @field_serializer('url')
+    def serialize_court_url(self, url: HttpUrl, _info):
+        return str(url)
 
 class Jurisdiction(BaseModel):
     """
@@ -79,6 +87,10 @@ class Jurisdiction(BaseModel):
     slug: Optional[str] = None
     whitelisted: Optional[bool] = None
     name_abbreviation: Optional[str] = None
+    
+    @field_serializer('url')
+    def serialize_judicial_url(self, url: HttpUrl, _info):
+        return str(url)
 
 
 class Opinion(BaseModel):
@@ -93,14 +105,14 @@ class Opinion(BaseModel):
         author (str): Name of the judge who authored the opinion, if identified.
         text (str): The text of the opinion.
     """
-    model_config = ConfigDict(
-        extra="allow",
-        arbitrary_types_allowed=True,
-    )
+    # model_config = ConfigDict(
+    #     extra="allow",
+    #     arbitrary_types_allowed=True,
+    # )
 
     type: str = "majority"
-    author: str = Field(None, description="Court Listener is Opinion.author_str")
-    text: str = Field(..., description="Court Listener is Opinion.author_str")
+    author: Optional[str] = None
+    text: str
     is_html: Optional[bool] = False
 
     def __repr__(self) -> str:
@@ -115,7 +127,7 @@ class Opinion(BaseModel):
         """Normalize Opinion author names by removing punctuation."""
         result = v or ""
         result = result.replace("Judge.", "Judge").replace("Justice.", "Justice")
-        return result.strip(", -:;")
+        return result
 
 
 class CaseData(BaseModel):
@@ -174,9 +186,9 @@ class Decision(BaseModel):
     """
     model_config = ConfigDict(
         extra="allow",
-        arbitrary_types_allowed=True,
+        arbitrary_types_allowed=False,
     )
-    decision_date: Optional[date] = None
+    decision_date: Optional[str] = None
     name: Optional[str] = None
     name_abbreviation: Optional[str] = None
     docket_num: Optional[str] = None
@@ -190,23 +202,86 @@ class Decision(BaseModel):
     jurisdiction: Optional[Jurisdiction] = None
     cites_to: Optional[Union[str, List[str], List[CAPCitation], Any]] = None
     id: Optional[int] = None
-    last_updated: Optional[date] = None
+    last_updated: Optional[str] = None
     frontend_url: Optional[HttpUrl] = None
-
-    def __str__(self):
-        citation = self.citations[0].cite if self.citations else ""
-        name = self.name_abbreviation or self.name
-        return f"{name}, {citation} ({self.decision_date})"
-
+    forward_citation_ids: Optional[List[str | int]] = None
+    
     @field_validator("decision_date", mode="before")
     def decision_date_must_include_day(
-        cls, v: datetime.date | str
-    ) -> datetime.date | str:
-        """Add a day of "01" if a string format is missing it."""
-        if isinstance(v, str) and len(v) == 7:
+        cls, v: Union[datetime.date, str]
+    ) -> Union[datetime.date, str]:
+        """
+        Ensures the decision_date includes a day if provided as a string in YYYY-MM format.
+
+        Args:
+            v (Union[datetime.date, str]): The decision date value to validate.
+
+        Returns:
+            Union[datetime.date, str]: The validated or modified decision date.
+        """
+        if isinstance(v, str) and len(v) == 7:  # YYYY-MM format
             return v + "-01"
         return v
+    
+    @field_validator("decision_date", mode="before")
+    def serialize_decision_date(cls, v: Union[date, str]) -> str:
+        """
+        Serializes the decision_date field to a string format.
 
+        Args:
+            decision_date (Union[date, str]): The decision date to be serialized.
+            _info: Additional information passed to the serializer, not used.
+
+        Returns:
+            str: The serialized decision date as a string.
+        """
+        if isinstance(v, date):
+            return v.isoformat()
+        return v
+    
+    @field_validator("last_updated", mode="before")
+    def serialize_updated_date(cls, v: Union[date, str]) -> str:
+        """
+        Serializes the last_updated field to a string format.
+
+        Args:
+            last_updated (Union[date, str]): The decision date to be serialized.
+            _info: Additional information passed to the serializer, not used.
+
+        Returns:
+            str: The serialized decision date as a string.
+        """
+        if isinstance(v, date):
+            return v.isoformat()
+        return v
+    
+    @field_serializer('frontend_url')
+    def serialize_frontend_url(self, frontend_url: HttpUrl, _info) -> str:
+        """
+        Serializes the frontend_url field to a string format.
+
+        Args:
+            frontend_url (HttpUrl): The frontend URL to be serialized.
+            _info: Additional information passed to the serializer, not used.
+
+        Returns:
+            str: The serialized frontend URL as a string.
+        """
+        return str(frontend_url)
+
+    def __str__(self) -> str:
+        """
+        String representation of the Decision instance.
+
+        Returns:
+            str: A string representation combining name, citation, and decision date.
+        """
+        citation = self.citations[0].cite if self.citations else ""
+        name = self.name_abbreviation or self.name
+        decision_date_str = self.serialize_decision_date(self.decision_date)
+        return f"{name}, {citation} ({decision_date_str})"
+
+    
     @property
     def text(self) -> Optional[str]:
         """
@@ -222,6 +297,23 @@ class Decision(BaseModel):
             return self.casebody.data
         elif self.casebody.data.opinions:
             return self.casebody.data.opinions[0].text
+        return None
+    
+    @property
+    def text_clean(self) -> Optional[str]:
+        """
+        Get the decision text with priority logic.
+
+        If the casebody data is in HTML format, it returns the HTML text.
+        Otherwise, it returns the text from the first opinion if available.
+
+        Returns:
+            Optional[str]: The decision text or None if not available.
+        """
+        if isinstance(self.casebody.data, str):
+            return eyecite.clean_text(self.casebody.data, ["html", "inline_whitespace"])
+        elif self.casebody.data.opinions:
+            return eyecite.clean_text(self.casebody.data.opinions[0].text, ["html", "inline_whitespace"])
         return None
 
     def extract_citation_contexts(
@@ -239,8 +331,7 @@ class Decision(BaseModel):
         Returns:
             str: A string of context around a citation found in the opinion text.
         """
-        # text it might be in HTML/Markdown, convert it first.
-        plain_text = self.opinion_text
+        plain_text = self.text_clean
         
         normalized_cite: str = normalize_case_cite(citation)
 
@@ -251,60 +342,6 @@ class Decision(BaseModel):
             citation_contexts = " ".join(citation_contexts)
 
         return citation_contexts
-
-    @property
-    def format_text(self) -> str:
-        """
-        Format the decision data as plain text resembling the HTML version.
-
-        Returns:
-            str: The formatted plain text representation of the decision.
-        """
-        text_parts = []
-        # Adding case ID, first page, and last page if available
-        if self.id and self.first_page and self.last_page:
-            text_parts.append(
-                f"Case ID: {self.id}, Pages: {self.first_page}-{self.last_page}\n"
-            )
-        # Head matter section
-        if hasattr(self.casebody.data, 'head_matter') and self.casebody.data.head_matter:
-            text_parts.append(f"Head Matter: {self.casebody.data.head_matter}\n")
-        # Parties
-        if hasattr(self, 'parties') and self.parties:
-            parties_text = "; ".join(self.parties)
-            text_parts.append(f"Parties: {parties_text}\n")
-        # Court
-        if hasattr(self, 'court') and self.court and hasattr(self.court, 'name'):
-            text_parts.append(f"Court: {self.court.name}\n")
-        # Decision Date
-        if hasattr(self, 'decision_date') and self.decision_date:
-            text_parts.append(
-                f"Decision Date: {self.decision_date.strftime('%B %d, %Y')}\n"
-            )
-        # Attorneys
-        if hasattr(self, 'attorneys') and self.attorneys:
-            attorneys_text = "; ".join(self.attorneys)
-            text_parts.append(f"Attorneys: {attorneys_text}\n")
-        # Judges
-        if hasattr(self.casebody.data, 'judges'):
-            judges = self.casebody.data.judges
-            if isinstance(judges, str):
-                judges_text = judges
-            elif isinstance(judges, list):
-                judges_text = "; ".join(judges)
-            else:
-                judges_text = ""
-            if judges_text:
-                text_parts.append(f"Judges: {judges_text}\n")
-        # Opinions
-        if hasattr(self.casebody.data, 'opinions') and self.casebody.data.opinions:
-            for opinion in self.casebody.data.opinions:
-                text_parts.append(f"Opinion Type: {opinion.type}\n")
-                if hasattr(opinion, 'author') and opinion.author:
-                    text_parts.append(f"Author: {opinion.author}\n")
-                text_parts.append(f"Text: {opinion.text}\n")
-        
-        return "\n".join(text_parts)
 
     @property
     def opinion_text(self) -> Optional[str]:
@@ -343,3 +380,76 @@ class Decision(BaseModel):
             if opinion.type == "majority":
                 return opinion
         return None
+
+
+class DecisionWithContext(Decision):
+    """Subclass of Decision that includes context for a citation."""
+    
+    def __init__(self, *args, context: Optional[str] = None, context_citation: Optional[str] = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.context = context
+        self.context_citation = context_citation
+        
+        
+def extract_parallel_citation_context(
+    forward_decisions: List[Decision], 
+    citations: List[str],
+    words_before: int = 400,
+    words_after: int = 400
+    ) -> List[DecisionWithContext]:
+    """
+    Extracts the context for the first found citation in each Decision object and returns a new list of Decision objects with the context stored in an attribute.
+        When multiple citations exist for a given opinion, i.e., are parallel, each version is checked until a match is found.
+
+    Args:
+        forward_decisions: A list of Decision objects to search through.
+        citations: A list of citation strings to search for in each Decision.
+
+    Returns:
+        A list of DecisionWithContext objects, each representing a Decision with an added context attribute.
+    """
+    updated_decisions = []
+
+    for decision in forward_decisions:
+        context_found = False
+        extracted_context = None
+        
+        for citation in citations:
+            if context_found:
+                break
+            
+            try:
+                context = decision.extract_citation_contexts(
+                    citation=citation,
+                    words_before=words_before,
+                    words_after=words_after,
+                )
+                
+                if context:
+                    extracted_context = context
+                    context_found = True
+            except Exception as e:
+                print(f"Error extracting context for citation {citation} in decision: {e}")
+        
+        # Create a new DecisionWithContext object, copying the original decision and adding the extracted context
+        updated_decision = DecisionWithContext(**decision.__dict__, context=extracted_context, context_citation=citation)
+        updated_decisions.append(updated_decision)
+
+    return updated_decisions
+
+
+def filter_decisions_by_forward_citations(decision: Decision, decisions_list: List[Decision]) -> List[Decision]:
+    """
+    Filters a list of Decision objects to include only those whose IDs match one of the IDs in the given Decision's forward_citation_ids.
+
+    Args:
+        decision (Decision): The Decision object whose forward_citation_ids will be used for filtering.
+        decisions_list (List[Decision]): A list of Decision objects to be filtered.
+
+    Returns:
+        List[Decision]: A list of Decision objects filtered based on the forward_citation_ids of the given Decision.
+    """
+    filtered_decisions = [d for d in decisions_list if d.id in decision.forward_citation_ids]
+    return filtered_decisions
+
+

@@ -167,7 +167,7 @@ def flatten_pydantic_instance(
         # Assuming nested pydantic model will be a dict here
         if isinstance(value, dict):
             nested_flat_data = flatten_pydantic_instance(
-                instance.model_fields[name].type_(**value),
+                instance.model_fields[name].annotation(**value),
                 prefix=f"{prefix}{name}__",
                 force_str=force_str,
             )

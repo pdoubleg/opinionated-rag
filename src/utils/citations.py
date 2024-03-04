@@ -5,7 +5,12 @@ import numpy as np
 import spacy
 import pandas as pd
 import eyecite
-from eyecite.models import CitationBase, CaseCitation, FullCaseCitation
+from eyecite.models import (
+    CitationBase, 
+    CaseCitation, 
+    FullCaseCitation, 
+    Resource,
+)
 from citeurl import Citator, insert_links
 
 from src.types import Document
@@ -262,6 +267,50 @@ def create_annotated_text(text: str) -> str:
     annotations = make_annotations(citations)
     annotated_text_ = eyecite.annotate_citations(text, annotations)
     annotated_text = insert_links(annotated_text_, ignore_markup=False)
+    return annotated_text
+
+
+
+def create_highlighted_citation(text: str, target_citation: str, html=True) -> str:
+    """
+    Creates a version of the input text with only the resolved target citation highlighted.
+
+    Args:
+        text (str): The original text.
+        target_citation (str): The citation string to highlight, which will be resolved.
+
+    Returns:
+        str: The text with the resolved target citation highlighted.
+    """
+    # Extract all citations from the text
+    citations: List[CitationBase] = eyecite.get_citations(text, remove_ambiguous=True)
+    # Resolve the citations to resources
+    resolutions = eyecite.resolve_citations(citations)
+
+    # Resolve the target citation separately to get its standardized form
+    target_citations = eyecite.get_citations(target_citation, remove_ambiguous=True)
+    resolved_target_citations = eyecite.resolve_citations(target_citations)
+    resolved_target_citation_strings = set()
+    for resource, cites in resolved_target_citations.items():
+        if isinstance(resource, Resource):
+            for citation in cites:
+                resolved_target_citation_strings.add(citation.corrected_citation())
+
+    annotations = []
+
+    # Iterate through the resolved citations in the text
+    for resource, cites in resolutions.items():
+        if isinstance(resource, Resource):
+            for citation in cites:
+                # Check if the resolved citation matches any resolved form of the target citation
+                if citation.corrected_citation() in resolved_target_citation_strings:
+                    if html:
+                        annotations.append((citation.span(), "<mark>", "</mark>"))
+                    else:
+                        annotations.append((citation.span(), "**", "**"))
+
+    # Annotate the text with highlights for the resolved target citation
+    annotated_text = eyecite.annotate_citations(text, annotations)
     return annotated_text
 
 
