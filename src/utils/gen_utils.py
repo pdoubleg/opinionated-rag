@@ -1,10 +1,14 @@
+import asyncio
 import importlib
+import inspect
+import math
 import os
+import string
 import pandas as pd
 import tiktoken
 import hashlib
 import uuid
-from typing import Any
+from typing import Any, BinaryIO, Coroutine
 
 
 def stringify(x: Any) -> str:
@@ -92,3 +96,63 @@ def safe_import(module: str, mitigation=None):
         return importlib.import_module(module)
     except ImportError:
         raise ImportError(f"Please install {mitigation or module}")
+    
+    
+def maybe_is_text(s: str, thresh: float = 2.5) -> bool:
+    if len(s) == 0:
+        return False
+    # Calculate the entropy of the string
+    entropy = 0.0
+    for c in string.printable:
+        p = s.count(c) / len(s)
+        if p > 0:
+            entropy += -p * math.log2(p)
+
+    # Check if the entropy is within a reasonable range for text
+    if entropy > thresh:
+        return True
+    return False
+
+
+def maybe_is_pdf(file: BinaryIO) -> bool:
+    magic_number = file.read(4)
+    file.seek(0)
+    return magic_number == b"%PDF"
+
+
+def maybe_is_html(file: BinaryIO) -> bool:
+    magic_number = file.read(4)
+    file.seek(0)
+    return (
+        magic_number == b"<htm"
+        or magic_number == b"<!DO"
+        or magic_number == b"<xsl"
+        or magic_number == b"<!X"
+    )
+    
+    
+async def gather_with_concurrency(n: int, coros: list[Coroutine]) -> list[Any]:
+    # https://stackoverflow.com/a/61478547/2392535
+    semaphore = asyncio.Semaphore(n)
+
+    async def sem_coro(coro):
+        async with semaphore:
+            return await coro
+
+    return await asyncio.gather(*(sem_coro(c) for c in coros))
+
+def get_loop() -> asyncio.AbstractEventLoop:
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    return loop
+
+
+def is_coroutine_callable(obj):
+    if inspect.isfunction(obj):
+        return inspect.iscoroutinefunction(obj)
+    elif callable(obj):
+        return inspect.iscoroutinefunction(obj.__call__)
+    return False

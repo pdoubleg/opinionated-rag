@@ -84,7 +84,7 @@ def ask_workflow(question: str) -> str:
 
     cot: EssayChainOfThought = create_essay_chain_of_thought(question)
 
-    print("[ask_workflow] cot: ", cot.dict())
+    print("[ask_workflow] cot: ", cot.model_dump())
 
     outline = cot.bullet_pointed_outline
 
@@ -313,7 +313,7 @@ class AuditLogItem:
         payload = self.decision
         if isinstance(payload, DecisionAct):
             decision_dict = dict(
-                action=payload.action.dict(),
+                action=payload.action.model_dump(),
                 confirm=payload.confirm,
             )
         elif isinstance(payload, DecisionRespond):
@@ -348,7 +348,7 @@ def create_audit_log_item(chat_history: ChatHistory, payload: DecisionPayload) -
 
     if isinstance(payload, DecisionAct):
         decision_dict = dict(
-            action=payload.action.dict(),
+            action=payload.action.model_dump(),
             confirm=payload.confirm,
         )
     elif isinstance(payload, DecisionRespond):

@@ -29,16 +29,6 @@ class SEARCH_TYPES:
     ALL_TYPES = [OPINION, RECAP, ORAL_ARGUMENT, PEOPLE]
     
 
-class Entity(str, Enum):
-    """
-    Enum for the different types of entities that can respond to the current message.
-    """
-
-    AGENT = "Agent"
-    LLM = "LLM"
-    USER = "User"
-    SYSTEM = "System"
-
 
 class DocMetaData(BaseModel):
     """Metadata for a document."""

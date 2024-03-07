@@ -192,21 +192,6 @@ class Case(object):
         return ""
     
     
-    # @property
-    # def normalize_case_cite(cite: Union[str, CaseCitation, CAPCitation]) -> str:
-    #     """Normalize a citation object or string."""
-    #     if isinstance(cite, CAPCitation):
-    #         return cite.cite
-    #     if isinstance(cite, str):
-    #         possible_cites = list(get_citations(cite))
-    #         bad_cites = []
-    #         for possible in possible_cites:
-    #             if isinstance(possible, CaseCitation):
-    #                 return possible.corrected_citation()
-    #             bad_cites.append(possible)
-    #         return ""
-    #     return cite.corrected_citation()
-    
     @property
     def name_short(self):
         return truncate_name(self.name)
@@ -248,6 +233,9 @@ class Case(object):
 
 class CourtListenerCaseDataSource(LegalDataSource):
     def __init__(self):
+        """
+        Initializes the CourtListenerCaseDataSource object by setting up the session with the CourtListener API.
+        """
         session_builder(
             self,
             "COURTLISTENER_API_KEY",
@@ -256,21 +244,62 @@ class CourtListenerCaseDataSource(LegalDataSource):
             "Token ",
         )(self)
 
-    def options(self, endpoint="", headers={}):
+    def options(self, endpoint: str = "", headers: dict = {}) -> dict:
+        """
+        Fetches the HTTP OPTIONS for a given API endpoint.
+
+        Args:
+            endpoint (str): The API endpoint to query.
+            headers (dict): Additional headers to include in the request.
+
+        Returns:
+            dict: The JSON response from the OPTIONS request.
+        """
         ep = COURTLISTENER_BASE_URL + endpoint
         h = {"Authorization": f"Token {os.getenv('COURTLISTENER_API_KEY')}"}
         h = safe_merge(h, headers)
         return requests.options(ep, headers=h).json()
 
-    def find_cite(self, cite):
+    def find_cite(self, cite: str) -> list:
+        """
+        Searches for cases by citation.
+
+        Args:
+            cite (str): The citation to search for.
+
+        Returns:
+            list: A list of search results.
+        """
         result = self.request("search/", parameters={"citation": cite})
         return result["results"]
 
-    def find_case_id(self, case_id):
+    def find_case_id(self, case_id: str) -> list:
+        """
+        Searches for a case by its ID.
+
+        Args:
+            case_id (str): The ID of the case to search for.
+
+        Returns:
+            list: A list of search results.
+        """
         result = self.request("search/", parameters={"id": case_id})
         return result["results"]
 
-    def get_forward_cites_from_id(self, case_id: int) -> List[int]:
+    def basic_search(self, query: str) -> list:
+        """
+        Performs a basic search query on the CourtListener database.
+
+        Args:
+            query (str): The search query string.
+
+        Returns:
+            list: A list of search results.
+        """
+        result = self.request("search/", parameters={"q": query})
+        return result["results"]
+
+    def get_forward_citation_ids(self, case_id: int) -> List[int]:
         """
         Calls Court Listener's front end citation lookup engine to search all records for
             a given case id. Note that the header is set to "Presidential=on" for the "status" filter.
@@ -323,6 +352,9 @@ class CourtListenerCaseDataSource(LegalDataSource):
             else:
                 break
         return self.extract_case_searches(reslist)
+    
+    def fetch_cases_by_query(self, query):
+        return self.search({"q": query})
 
     def fetch_cases_by_cite(self, cite):
         return self.search({"citation": cite})
@@ -366,6 +398,11 @@ class CourtListenerCaseDataSource(LegalDataSource):
                 if verbose:
                     print(f"Fetching case ID: {str(cs)}")
                 thesecases = self.fetch_case(cs)
+                if verbose:
+                    try:
+                        print(f"Citation: {thesecases.cases[0].bluebook_citation}")
+                    except:
+                        print(f"Case Name: {thesecases.cases[0].name}")
                 cases.add(thesecases)
                 for case in thesecases.cases:
                     c.citation_network['cites'].append(case.id)
@@ -391,7 +428,7 @@ class CourtListenerCaseDataSource(LegalDataSource):
                       explored up to the specified depth.
         """
         cases = Caselist([])
-        tofetch = set(self.get_forward_cites_from_id(case_id))
+        tofetch = set(self.get_forward_citation_ids(case_id))
         newtofetch = set()
         fetched = set()
 
@@ -401,11 +438,16 @@ class CourtListenerCaseDataSource(LegalDataSource):
                     if verbose:
                         print(f"Fetching forward citation ID: {cid}")
                     thesecases = self.fetch_case(cid)
+                    if verbose:
+                        try:
+                            print(f"Citation: {thesecases.cases[0].bluebook_citation}")
+                        except:
+                            print(f"Case Name: {thesecases.cases[0].name}")
                     cases.add(thesecases)
                     for case in thesecases.cases:
                         case.citation_network['cited_by'].append(case_id)
                         self.fetch_case(case_id)[0].citation_network['cites'].append(case.id)
-                    newtofetch.update(self.get_forward_cites_from_id(cid))
+                    newtofetch.update(self.get_forward_citation_ids(cid))
                     fetched.add(cid)
             tofetch = newtofetch.difference(fetched)
             newtofetch = set()

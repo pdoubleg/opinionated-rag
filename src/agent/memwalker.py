@@ -1,12 +1,9 @@
-import openai  # Importing the OpenAI library
-import json  # Importing the json library for handling JSON data
-import os  # Importing the os library for handling operating system dependent functionality
+import openai
+import json
+import os
 
-openai.api_key = (
-    os.getenv("OPENAI_API_KEY") or "YOUR_API_KEY"
-)  # Setting the OpenAI API key
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# Importing the retry, stop_after_attempt, wait_exponential functions from the tenacity library for implementing exponential backoff
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 

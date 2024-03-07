@@ -5,276 +5,238 @@ import json
 import os
 from dotenv import load_dotenv
 from typing import Any, Dict, List, Optional, Union
+from datetime import date, datetime
+from pydantic import BaseModel, field_validator
 
 import requests
 
 from .utils import normalize_case_cite
-from src.schema.citations import CaseCitation
-from src.schema.decisions import CAPCitation, Decision
+from src.schema.citations import CAPCitation
+from src.schema.decisions import Decision, DecisionWithContext, CaseBody, CaseData, Court, Opinion
+from src.doc_store.courtlistener import Caselist, CourtListenerCaseDataSource
 
 from src.types import SEARCH_TYPES
-
-# COURTLISTENER_BASE_URL = "https://www.courtlistener.com/api/rest/v3/"
-COURTLISTENER_WEB_URL = "https://www.courtlistener.com"
-# COURTLISTENER_API_KEY = os.getenv("COURTLISTENER_API_KEY")
 
 load_dotenv()
 
 
-class CourtListenerClient:
-    """Downloads judicial decisions from Case Access Project API."""
-
-    def __init__(self, api_token: Optional[str] = None):
-        """
-        Create download client with an API token and an API address.
-
-        Args:
-            api_token (Optional[str]): The API token for authentication. Defaults to None.
-        """
-        self.endpoint: str = "https://www.courtlistener.com/api/rest/v3/"
-        self.api_token: Optional[str] = api_token or os.getenv("COURTLISTENER_API_KEY")
-        self.api_alert: str = (
-            "Set the CourtListenerClient's 'api_key' attribute to "
-            "your API key for Court Listener. See https://www.courtlistener.com/help/api/"
-        )
-
-    def get_api_headers(self) -> Dict[str, str]:
-        """
-        Get the headers for the API request.
-
-        Returns:
-            Dict[str, str]: The headers for the API request.
-        """
-        return {"Authorization": f"Token {self.api_token}"}
+class CourtListenerClient(CourtListenerCaseDataSource):
+    def __init__(self):
+        super().__init__()
+        
+    def find_cite(self, case_id: int) -> Decision:
+        case_data = super().find_cite(case_id)
+        search_res = SearchResult(**case_data[0])
+        return search_res
+        
+    def fetch_case_by_id(self, case_id: int) -> Decision:
+        case_data = super().fetch_case(case_id)
+        decision = self.make_decisions(case_data)
+        return decision[0]
     
-    def fetch(
-        self,
-        query: Union[int, str, CaseCitation, CAPCitation],
-        full_case: bool = False,
-        body_format: Optional[str] = None,
-    ) -> requests.models.Response:
-        """
-        Query by id or citation, and download Decision.
-
-        Args:
-            query (Union[int, str, CaseCitation, CAPCitation]): The query parameter, which can be an ID, a string, or a citation object.
-            full_case (bool): Whether to fetch the full case text. Defaults to False.
-
-        Returns:
-            requests.models.Response: The response from the API.
-        """
-        if isinstance(query, int) or (isinstance(query, str) and query.isdigit()):
-            return self.fetch_id(
-                int(query), full_case=full_case, body_format=body_format
-            )
-        return self.fetch_cite(query, full_case=full_case, body_format=body_format)
-
-    def read(
-        self, query: Union[int, str, CaseCitation, CAPCitation], full_case: bool = False
-    ) -> Decision:
-        """
-        Query by CAP id or citation, download, and load Decision from API.
-
-        Args:
-            query (Union[int, str, CaseCitation, CAPCitation]): The query parameter, which can be an ID, a string, or a citation object.
-            full_case (bool): Whether to fetch the full case text. Defaults to False.
-
-        Returns:
-            Decision: The decision object loaded from the API response.
-        """
-        if isinstance(query, int) or (isinstance(query, str) and query.isdigit()):
-            return self.read_id(int(query), full_case=full_case)
-        return self.read_cite(query, full_case=full_case)
+    def fetch_case_by_cite(self, citation: str) -> Decision:
+        cite_data = super().find_cite(citation)
+        decision = self.fetch_case_by_id(cite_data.id)
+        return decision[0]
     
-   
-
-    def fetch_cite(
-        self,
-        cite: Union[str, CaseCitation, CAPCitation],
-        full_case: bool = False,
-        body_format: Optional[str] = None,
-    ) -> requests.models.Response:
+    def read_forward_citations(self, case_id: int, verbose: bool = True) -> List[Decision]:
         """
-        Get the API list response for a queried citation from the API.
+        Queries the Court Listener front end 'citation search' for case ids that cited a target case, then 
+            queries each id and converting the results to a Decision.
+        """
+        forward_citing_cases = super().fetch_forward_citations(case_id, verbose=verbose)
+        decisions = self.make_decisions(forward_citing_cases)
+        return decisions
+    
+    def fetch_cited_by(self, case_id: int) -> List[int]:
+        """Fetches a list of ids for cases cited by the target citation."""
+        case = super().fetch_case(case_id)
+        citing_ids = list(case.citing())
+        return citing_ids
+    
+    def read_cited_by(self, case_id: int, depth: int = 1, verbose: bool = True) -> List[Decision]:
+        case = super().fetch_case(case_id)
+        cited_by_cases = super().fetch_cases_cited_by(case.cases[0], depth, verbose)
+        decisions = self.make_decisions(cited_by_cases)
+        return decisions
+    
+    
+    def search_query(self, query: str) -> List[SearchResult]:
+        search_res = self.basic_search(query)
+        return [SearchResult(**s) for s in search_res]
+
+
+    def make_decisions(self, caselist: Caselist) -> List[Decision]:
+        """
+        Converts a list of cases into a list of Decision objects.
 
         Args:
-            cite (Union[str, CaseCitation, CAPCitation]): A citation linked to an opinion in the Caselaw Access Project database.
-            full_case (bool): Whether to request the full text of the opinion. Defaults to False.
-            body_format (Optional[str]): The format of the body text (text, html, xml). Only applicable if full_case is True. Defaults to None.
+            caselist: A Caselist object containing multiple cases.
 
         Returns:
-            requests.models.Response: The response from the API.
-
-        Raises:
-            ValueError: If body_format is provided but full_case is False.
+            A list of Decision objects, each representing a case in the caselist.
         """
-
-        normalized_cite: str = normalize_case_cite(cite)
-
-        params: Dict[str, str] = {"cite": normalized_cite}
-
-        headers: Dict[str, str] = self.get_api_headers()
-
-        if full_case:
-            params["full_case"] = "true"
-            if body_format:
-                params["body_format"] = body_format
-        response: requests.models.Response = requests.get(
-            self.endpoint, params=params, headers=headers
-        )
-        if response.status_code == 401:
-            detail: str = response.json()["detail"]
-            raise CourtListenerAPIError(f"{detail} {self.api_alert}")
-        return response
-
-    def fetch_forward_cites(self, cap_id: int) -> List[str]:
-            """
-            Get the API 'cites_to' response for a given case id.
-
-            Args:
-                cap_id (str): An identifier for an opinion in the Caselaw Access Project database.
-
-            Returns:
-                List[str]: A list of citation strings that cited the input case id.
-            """
-
-            params: Dict[str, str] = {"cites_to": cap_id}
-
-            headers: Dict[str, str] = self.get_api_headers(full_case=False)
-
-            response: requests.models.Response = requests.get(
-                self.endpoint, params=params, headers=headers
+        decisions = []
+        for case in caselist.cases:
+            # Fallback mechanism for citations
+            if case.cluster.citations:
+                citations = [
+                    CAPCitation(
+                        cite=str(citation),
+                        reporter=citation.reporter,
+                        category=citation.type.name.title(),
+                        case_ids=[case.cluster.id],
+                    )
+                    for citation in case.cluster.citations
+                ]
+            else:
+                # Fallback citation when case.cluster.citations is None
+                citations = [
+                    CAPCitation(
+                        cite=case.name_short,
+                        reporter=case.court,
+                        category="Fallback", 
+                        case_ids=[case.cluster.id],
+                    )
+                ]
+            decision = Decision(
+                id=case.opinions[0].id,
+                decision_date=case.date,
+                name=case.bluebook_citation,
+                name_abbreviation=case.docket.case_name_short,
+                docket_num=case.docket.docket_number,
+                citations=citations,
+                attorneys=case.people["attorneys"],
+                court=Court(
+                    id=case.docket.id,
+                    name=case.court,
+                    url=case.docket.court,
+                ),
+                casebody=CaseBody(
+                    data=CaseData(
+                        head_matter=case.cluster.headmatter,
+                        opinions=[
+                            Opinion(
+                                type=opinion.type.name.title(),
+                                author=case.people.get("judges", ""),
+                                text=opinion.html,
+                                is_html=True,
+                            ) for opinion in case.opinions
+                        ],
+                        judges=case.people.get("judges", []),
+                    ),
+                    status=case.cluster.precedential_status.name,
+                ),
+                cites_to=case.opinions[0].citing_cases if case.opinions else [],
+                frontend_url=case.opinions[0].web_link if case.opinions else "",
             )
-            forward_cites = json.loads(response.content).get("results")
-            results = [forward_cite["id"] for forward_cite in forward_cites]
+            decisions.append(decision)
+        return decisions
 
-            if response.status_code == 401:
-                detail: str = response.json()["detail"]
-                raise CourtListenerAPIError(f"{detail} {self.api_alert}")
-            return results
+    # @classmethod
+    # def extract_parallel_citation_context(
+    #     forward_decisions: List[Decision], 
+    #     citations: List[str],
+    #     words_before: int = 400,
+    #     words_after: int = 400
+    #     ) -> List[DecisionWithContext]:
+    #     """
+    #     Extracts the context for the first found citation in each Decision object and returns a new list of Decision objects with the context stored in an attribute.
+    #         When multiple citations exist for a given opinion, i.e., are parallel, each version is checked until a match is found.
 
-    def read_decision_list_by_cite(
-        self, cite: Union[str, CaseCitation, CAPCitation], full_case: bool = False, body_format: Optional[str] = None,
-    ) -> List[Decision]:
+    #     Args:
+    #         forward_decisions: A list of Decision objects to search through.
+    #         citations: A list of citation strings to search for in each Decision.
+
+    #     Returns:
+    #         A list of DecisionWithContext objects, each representing a Decision with an added context attribute.
+    #     """
+    #     updated_decisions = []
+
+    #     for decision in forward_decisions:
+    #         context_found = False
+    #         extracted_context = None
+            
+    #         for citation in citations:
+    #             if context_found:
+    #                 break
+                
+    #             try:
+    #                 context = decision.extract_citation_contexts(
+    #                     citation=citation,
+    #                     words_before=words_before,
+    #                     words_after=words_after,
+    #                 )
+                    
+    #                 if context:
+    #                     extracted_context = context
+    #                     context_found = True
+    #             except Exception as e:
+    #                 print(f"Error extracting context for citation {citation} in decision: {e}")
+            
+    #         # Create a new DecisionWithContext object, copying the original decision and adding the extracted context
+    #         updated_decision = DecisionWithContext(**decision.__dict__, context=extracted_context, context_citation=citation)
+    #         updated_decisions.append(updated_decision)
+
+    #     return updated_decisions
+
+
+class SearchResult(BaseModel):
+    id: int
+    dateFiled: Optional[date | datetime | str] = None
+    citation: str
+    docket_id: int
+    cluster_id: int
+    caseName: str
+    court: str
+    judge: str
+    status: str
+    snippet: str
+    
+    @field_validator("dateFiled", mode="before")
+    def serialize_decision_date(cls, v: Union[date, str]) -> str:
         """
-        Download and deserialize the "results" list for a queried citation from the API.
+        Serializes the decision_date field to a string format.
 
         Args:
-            cite (Union[str, CaseCitation, CAPCitation]): A citation linked to an opinion in the Caselaw Access Project database.
-            full_case (bool): Whether to request the full text of the opinion. Defaults to False.
+            decision_date (Union[date, str]): The decision date to be serialized.
+            _info: Additional information passed to the serializer, not used.
 
         Returns:
-            List[Decision]: A list of decision objects deserialized from the API response.
+            str: The serialized decision date as a string.
         """
-        response: requests.models.Response = self.fetch_cite(
-            cite=cite, full_case=full_case, body_format=body_format
-        )
-        return self.read_decisions_from_response(response)
-
-    def read_decisions_from_response(
-        self, response: requests.models.Response
-    ) -> List[Decision]:
+        if isinstance(v, date):
+            return v.isoformat()
+        return v
+    
+    @field_validator("citation", mode="before")
+    def fix_citations(cls, v: Union[date, str]) -> str:
         """
-        Deserialize a list of cases from the "results" list of a response from the API.
+        Serializes the decision_date field to a string format.
 
         Args:
-            response (requests.models.Response): A response from the API.
+            decision_date (Union[date, str]): The decision date to be serialized.
+            _info: Additional information passed to the serializer, not used.
 
         Returns:
-            List[Decision]: A list of decision objects deserialized from the response.
+            str: The serialized decision date as a string.
         """
-        results: List[Dict[str, Any]] = response.json()["results"]
-        return [Decision(**result) for result in results]
-
-    def read_decision_from_response(
-        self, response: requests.models.Response
-    ) -> Decision:
-        """
-        Deserialize a single case from the "results" list of a response from the API.
-
-        Args:
-            response (requests.models.Response): A response from the API.
-
-        Returns:
-            Decision: A decision object deserialized from the response.
-        """
-        decision: Dict[str, Any] = response.json()
-        if "results" in decision:
-            return Decision(**decision["results"][0])
-        return Decision(**decision)
-
-    def read_cite(
-        self, cite: Union[str, CaseCitation, CAPCitation], full_case: bool = False, body_format: Optional[str] = None,
-    ) -> Decision:
-        """
-        Download and deserialize a Decision from Caselaw Access Project API.
-
-        Args:
-            cite (Union[str, CaseCitation, CAPCitation]): A citation linked to an opinion in the Caselaw Access Project database.
-            full_case (bool): Whether to request the full text of the opinion. Defaults to False.
-
-        Returns:
-            Decision: A decision object deserialized from the API response.
-        """
-        response: requests.models.Response = self.fetch_cite(
-            cite=cite, full_case=full_case, body_format=body_format
-        )
-        return self.read_decision_from_response(response=response)
-
-    def fetch_id(
-        self, cap_id: int, full_case: bool = False, body_format: Optional[str] = None
-    ) -> requests.models.Response:
-        """
-        Download a decision from Caselaw Access Project API.
-
-        Args:
-            cap_id (int): An identifier for an opinion in the Caselaw Access Project database.
-            full_case (bool): Whether to request the full text of the opinion. Defaults to False.
-            body_format (Optional[str]): The format of the body text (text, html, xml). Defaults to None.
-
-        Returns:
-            requests.models.Response: The response from the API.
-        """
-        if body_format and not full_case:
-            raise ValueError("body_format can only be specified if full_case is True.")
-
-        url: str = self.endpoint + f"{cap_id}/"
-        headers: Dict[str, str] = self.get_api_headers(full_case=full_case)
-        params: Dict[str, str] = {}
-        if full_case:
-            params["full_case"] = "true"
-        if body_format:
-            params["body_format"] = body_format
-        response: requests.models.Response = requests.get(
-            url, params=params, headers=headers
-        )
-        if cap_id and response.status_code == 404:
-            raise CourtListenerAPIError(f"API returned no cases with id {cap_id}")
-        return response
-
-    def read_id(
-        self, cap_id: int, full_case: bool = False, body_format: Optional[str] = None
-    ) -> Decision:
-        """
-        Download a decision from Caselaw Access Project API.
-
-        Args:
-            cap_id (int): An identifier for an opinion in the Caselaw Access Project database.
-            full_case (bool): Whether to request the full text of the opinion. Defaults to False.
-
-        Returns:
-            Decision: A decision object created from the API response.
-        """
-        result: requests.models.Response = self.fetch_id(
-            cap_id=cap_id,
-            full_case=full_case,
-            body_format=body_format,
-        )
-
-        return Decision(**result.json())
-
-
-class CourtListenerAPIError(Exception):
-    """Error for failed attempts to use the Case Access Project API."""
-
-    pass
+        if isinstance(v, list):
+            return ", ".join(v)
+        return v
+    
+    def __str__(self):
+        text_parts = []
+        case_id = f"Case ID: {self.id}"
+        text_parts.append(case_id)
+        name_short = str(self.caseName)
+        text_parts.append(name_short)
+        date = f"Date Filed: {self.dateFiled[:10]}"
+        text_parts.append(date)
+        normalized_cite = f"Citation(s): {self.citation}"
+        text_parts.append(normalized_cite)
+        court = f"Court: {str(self.court)}"
+        text_parts.append(court)
+        snippet = self.snippet
+        text_parts.append(snippet)
+        return "\n\n".join(text_parts)

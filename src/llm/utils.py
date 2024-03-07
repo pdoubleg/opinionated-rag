@@ -14,6 +14,8 @@ from pydantic import BaseModel
 import requests
 from diskcache import Cache
 
+from src.utils.system import friendly_error
+
 # from src.utils.system import friendly_error
 
 logger = logging.getLogger(__name__)

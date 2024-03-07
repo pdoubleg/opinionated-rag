@@ -31,6 +31,7 @@ from pydantic_settings import BaseSettings
 from diskcache import Cache
 import functools
 import inspect
+from src.utils.system import friendly_error
 # from utils.constants import NO_ANSWER
 
 # from utils.system import friendly_error

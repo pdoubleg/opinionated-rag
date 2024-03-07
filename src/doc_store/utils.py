@@ -1,4 +1,6 @@
+from collections import Counter
 from datetime import date, datetime
+import hashlib
 import os
 import re
 from eyecite import get_citations
@@ -6,6 +8,9 @@ from eyecite.models import CaseCitation
 from markdown import markdown
 from bs4 import BeautifulSoup
 from typing import Any, Callable, Dict, List, Optional, Union
+import json
+from typing import List, Type, TypeVar
+from pydantic import BaseModel
 from dotenv import load_dotenv
 import pandas as pd
 import requests
@@ -13,8 +18,57 @@ import requests_cache
 from src.schema.citations import CAPCitation
 from src.parsing.utils import clean_whitespace
 from src.utils.citations import create_annotated_text
+from .logger import get_console_logger
+
+logger = get_console_logger("utils")
 
 load_dotenv()
+
+T = TypeVar('T', bound=BaseModel)
+
+
+def filter_decisions_with_text(decisions: List[BaseModel]) -> List[BaseModel]:
+    """
+    Filters a list of Decision objects to include only those with text in either the 
+    decision.casebody.data attribute or the first opinion's text attribute in decision.casebody.opinions.
+
+    Args:
+        decisions (List[Decision]): A list of Decision objects to filter.
+
+    Returns:
+        List[Decision]: A list of Decision objects that contain text.
+    """
+    filtered_decisions = []
+    for decision in decisions:
+        if decision.casebody:
+            if isinstance(decision.casebody.data, str) and decision.casebody.data.strip():
+                filtered_decisions.append(decision)
+            elif decision.casebody.data.opinions and decision.casebody.data.opinions[0].text.strip():
+                filtered_decisions.append(decision)
+    return filtered_decisions
+
+
+def count_duplicate_ids(decisions: List[BaseModel]) -> int:
+    """
+    Counts the number of duplicate `id` values in a list of Decision objects.
+
+    Args:
+        decisions (List[Decision]): A list of Decision objects.
+
+    Returns:
+        int: The count of duplicate `id` values.
+    """
+    id_counts = Counter([decision.id for decision in decisions])
+    duplicate_count = sum(count > 1 for count in id_counts.values())
+    return duplicate_count
+
+
+def hash_text(text: str) -> str:
+    return hashlib.md5(text.encode()).hexdigest()
+
+
+def convert_timestamp_to_datetime(timestamp: str) -> str:
+    return datetime.fromtimestamp(int(timestamp)).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def normalize_case_cite(cite: Union[str, CaseCitation, CAPCitation]) -> str:
@@ -28,14 +82,44 @@ def normalize_case_cite(cite: Union[str, CaseCitation, CAPCitation]) -> str:
             if isinstance(possible, CaseCitation):
                 return possible.corrected_citation()
             bad_cites.append(possible)
-        error_msg = f"Could not locate a CaseCitation in the text {cite}."
-        for bad_cite in bad_cites:
-            error_msg += (
-                f" {bad_cite} was type {bad_cite.__class__.__name__}, not CaseCitation."
-            )
-
-        raise ValueError(error_msg)
+        print(f"Could not locate a CaseCitation in the text for: type{type(cite)}.")
+        return cite
+        
     return cite.corrected_citation()
+
+
+def save_models_to_json(models: List[BaseModel], file_path: str) -> None:
+    """
+    Saves a list of Pydantic models to a JSON file.
+
+    Args:
+        models: A list of Pydantic model instances.
+        file_path: The path to the JSON file where the data will be saved.
+
+    Returns:
+        None
+    """
+    with open(file_path, 'w') as f:
+        # Convert list of models to list of dictionaries
+        data = [model.model_dump() for model in models]
+        json.dump(data, f, indent=4)
+        
+
+def load_models_from_json(model_class: Type[T], file_path: str) -> List[T]:
+    """
+    Loads JSON data from a file and converts it into a list of Pydantic models.
+
+    Args:
+        model_class: The Pydantic model class to which the JSON objects will be converted.
+        file_path: The path to the JSON file from which the data will be loaded.
+
+    Returns:
+        A list of Pydantic model instances.
+    """
+    with open(file_path, 'r') as f:
+        data = json.load(f)
+        models = [model_class.model_validate(item) for item in data]
+    return models   
 
 def markdown_to_text(markdown_string: str) -> str:
     """Converts a markdown string to plain text.

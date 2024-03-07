@@ -1,20 +1,24 @@
 from datetime import datetime, timezone
 import hashlib
-import os
+from tqdm.asyncio import tqdm
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Literal, Optional
 import uuid
 import instructor
 import openai
-from pyquery import PyQuery
 from pydantic import BaseModel, ConfigDict, Field, validator
-from tenacity import Retrying, stop_after_attempt, wait_fixed
+from tenacity import Retrying, AsyncRetrying, stop_after_attempt, wait_fixed
+
+from src.schema.decisions import Decision, DecisionWithContext
 
 client = instructor.patch(openai.OpenAI())
 
 
 class APICommunicationError(Exception):
+    
     pass
+
+
 
 
 class CitationAnalysis(BaseModel):
@@ -66,6 +70,35 @@ def analyze_citation(
     )
     
     
+
+async def analyze_citations(citation, context):
+    client = instructor.patch(openai.AsyncOpenAI())
+    return await client.chat.completions.create(
+        model="gpt-4-turbo-preview",
+        response_model=CitationAnalysis,
+        max_retries=AsyncRetrying(
+        stop=stop_after_attempt(3),
+        wait=wait_fixed(1),
+    ),
+        messages=[
+            {
+                "role": "system",
+                "content": "Your role is to extract information about a legal citation using the context, which is an excerpt from a subsequent legal proceeding that referenced the citation of interest.",
+            },
+            {"role": "user", "content": f"Your task focuses on citation: **{citation}**"},
+            {"role": "user", "content": f"Here is the context: {context}"}
+        ]
+    )
+    
+    
+async def process_citations_with_progress(decisions_context):
+    results = []
+    for forward_case in tqdm(decisions_context, total=len(decisions_context)):
+        result = await analyze_citations(forward_case.context_citation, forward_case.context)
+        results.append(result)
+    return results
+    
+    
 class DocMetaData(BaseModel):
     """Metadata for a legal document."""
 
@@ -97,16 +130,16 @@ class LegalDataSource(ABC):
     """
 
     @abstractmethod
-    def fetch_case(self, case_id: int) -> Dict[str, Any]:
+    def fetch_case(self, case_id: int) -> Dict[str, Any] | Decision | Any:
         """
-        Fetches a case by its ID and returns the case data as a dictionary.
+        Fetches a case by its ID.
         """
         pass
 
     @abstractmethod
-    def fetch_forward_citations(self, case_id: int) -> List[Dict[str, Any]]:
+    def get_forward_citation_ids(self, case_id: int) -> List[int]:
         """
-        Fetches forward citations for a given case ID.
+        Fetches 'forward citations' case IDs, i.e., cases that cite a given case.
         """
         pass
 
@@ -116,6 +149,7 @@ class LegalDataSource(ABC):
         Generates a Bluebook citation for a given case ID.
         """
         pass
+    
 
 
 class LegalDocument(BaseModel):

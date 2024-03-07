@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional, Union
 
 import requests
 
+from src.doc_store.base import LegalDataSource
+
 from .utils import normalize_case_cite
 from src.schema.citations import CaseCitation
 from src.schema.decisions import CAPCitation, Decision
@@ -15,7 +17,7 @@ from src.schema.decisions import CAPCitation, Decision
 load_dotenv()
 
 
-class CAPClient:
+class CAPClient(LegalDataSource):
     """Downloads judicial decisions from Case Access Project API."""
 
     def __init__(self, api_token: Optional[str] = None):
@@ -33,7 +35,7 @@ class CAPClient:
             "your API key for the Case Access Project. See https://api.case.law/"
         )
 
-    def fetch(
+    def fetch_case(
         self,
         query: Union[int, str, CaseCitation, CAPCitation],
         full_case: bool = False,
@@ -131,18 +133,18 @@ class CAPClient:
             raise CaseAccessProjectAPIError(f"{detail} {self.api_alert}")
         return response
 
-    def fetch_forward_cites(self, cap_id: int) -> List[str]:
+    def get_forward_citation_ids(self, case_id: int) -> List[str]:
             """
             Get the API 'cites_to' response for a given case id.
 
             Args:
-                cap_id (str): An identifier for an opinion in the Caselaw Access Project database.
+                case_id (str): An identifier for an opinion in the Caselaw Access Project database.
 
             Returns:
                 List[str]: A list of case ids that cited the input case id.
             """
 
-            params: Dict[str, str] = {"cites_to": cap_id}
+            params: Dict[str, str] = {"cites_to": case_id}
 
             headers: Dict[str, str] = self.get_api_headers(full_case=False)
 
@@ -226,15 +228,15 @@ class CAPClient:
         return self.read_decision_from_response(response=response)
 
     def fetch_id(
-        self, cap_id: int, full_case: bool = False, body_format: Optional[str] = None
+        self, case_id: int, full_case: bool = True, body_format: Optional[str] = "html"
     ) -> requests.models.Response:
         """
         Download a decision from Caselaw Access Project API.
 
         Args:
-            cap_id (int): An identifier for an opinion in the Caselaw Access Project database.
-            full_case (bool): Whether to request the full text of the opinion. Defaults to False.
-            body_format (Optional[str]): The format of the body text (text, html, xml). Defaults to None.
+            case_id (int): An identifier for an opinion in the Caselaw Access Project database.
+            full_case (bool): Whether to request the full text of the opinion. Defaults to True.
+            body_format (Optional[str]): The format of the body text (text, html, xml). Defaults to html.
 
         Returns:
             requests.models.Response: The response from the CAP API.
@@ -242,7 +244,7 @@ class CAPClient:
         if body_format and not full_case:
             raise ValueError("body_format can only be specified if full_case is True.")
 
-        url: str = self.endpoint + f"{cap_id}/"
+        url: str = self.endpoint + f"{case_id}/"
         headers: Dict[str, str] = self.get_api_headers(full_case=full_case)
         params: Dict[str, str] = {}
         if full_case:
@@ -252,30 +254,135 @@ class CAPClient:
         response: requests.models.Response = requests.get(
             url, params=params, headers=headers
         )
-        if cap_id and response.status_code == 404:
-            raise CaseAccessProjectAPIError(f"API returned no cases with id {cap_id}")
+        if case_id and response.status_code == 404:
+            raise CaseAccessProjectAPIError(f"API returned no cases with id {case_id}")
         return response
 
     def read_id(
-        self, cap_id: int, full_case: bool = False, body_format: Optional[str] = None
+        self, case_id: int, full_case: bool = True, body_format: Optional[str] = "html"
     ) -> Decision:
         """
         Download a decision from Caselaw Access Project API.
 
         Args:
-            cap_id (int): An identifier for an opinion in the Caselaw Access Project database.
+            case_id (int): An identifier for an opinion in the Caselaw Access Project database.
             full_case (bool): Whether to request the full text of the opinion. Defaults to False.
 
         Returns:
             Decision: A decision object created from the CAP API response.
         """
         result: requests.models.Response = self.fetch_id(
-            cap_id=cap_id,
+            case_id=case_id,
             full_case=full_case,
             body_format=body_format,
         )
 
         return Decision(**result.json())
+    
+    
+    def read_forward_citations(self, case_id: int, depth: int = 1, verbose: bool = True) -> List[Decision]:
+        """
+        Fetches forward citations for a given case ID, exploring up to a specified depth, with an option to print verbose output.
+
+        Args:
+            case_id (int): The ID of the case for which to fetch forward citations.
+            depth (int): The depth to explore forward citations. Default is 1.
+            verbose (bool): If True, prints out ids as they are being fetched. Default is True.
+
+        Returns:
+            List[Decision]: A list of Decision objects for all cases that cite the target case,
+                            explored up to the specified depth.
+        """
+        decisions = []
+        tofetch = set(self.get_forward_citation_ids(case_id))
+        newtofetch = set()
+        fetched = set()
+
+        while depth > 0:
+            for cid in tofetch:
+                if cid not in fetched:
+                    if verbose:
+                        print(f"Fetching forward citation ID: {cid}")
+                    case_data = self.read_id(cid, full_case=True, body_format="html")
+                    decisions.append(case_data)
+                    if verbose:
+                        print(f"Citation: {str(case_data)}")
+                    newtofetch.update(self.get_forward_citation_ids(cid))
+                    fetched.add(cid)
+            tofetch = newtofetch.difference(fetched)
+            newtofetch = set()
+            depth -= 1
+
+        return decisions
+    
+    def fetch_cited_by(self, case_id: int) -> List[int]:
+        """
+        Fetches a list of ids for cases cited by the target case.
+
+        Args:
+            case_id (int): The ID of the target case.
+
+        Returns:
+            List[int]: A list of case IDs that are cited by the target case.
+        """
+        case = self.read_id(case_id)
+        citations = case.cites_to
+        ids = []
+        for cite in citations:
+            for id in cite.case_ids:
+                ids.append(id)            
+        return ids
+    
+    
+    def read_cited_by(self, case_id: int, depth: int = 1, verbose: bool = True) -> List[Decision]:
+        """
+        Fetches Decision objects for cases cited by the target case, exploring up to a specified depth.
+
+        Args:
+            case_id (int): The ID of the target case.
+            depth (int): The depth to explore citations. Default is 1.
+            verbose (bool): If True, prints out ids as they are being fetched. Default is True.
+
+        Returns:
+            List[Decision]: A list of Decision objects for cases cited by the target case, explored up to the specified depth.
+        """
+        fetched_cases = set()
+        cases_to_fetch = set(self.fetch_cited_by(case_id))
+        new_cases_to_fetch = set()
+
+        decisions = []
+
+        while depth > 0 and cases_to_fetch:
+            for cid in cases_to_fetch:
+                if cid not in fetched_cases:
+                    if verbose:
+                        print(f"Fetching case ID: {cid}")
+                    try:
+                        decision = self.read_id(int(cid), full_case=True, body_format="html")
+                        decisions.append(decision)
+                        if verbose:
+                            print(f"Fetched Decision: {str(decision)}")
+                        new_cases_to_fetch.update(self.fetch_cited_by(cid))
+                    except Exception as e:
+                        if verbose:
+                            print(f"Error fetching case ID {cid}: {e}")
+                    finally:
+                        fetched_cases.add(cid)
+            cases_to_fetch = new_cases_to_fetch - fetched_cases
+            new_cases_to_fetch = set()
+            depth -= 1
+
+        return decisions
+    
+    def get_bluebook_citation(
+        self, 
+        case_id: Optional[Union[str, int]] = None,
+        ) -> str:
+        decision = self.read_id(case_id, full_case=True, body_format="html")
+        return str(decision)
+    
+    
+    
 
 
 class CaseAccessProjectAPIError(Exception):
