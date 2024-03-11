@@ -46,6 +46,8 @@ class Source(Enum):
     ANON_2020_AND_SCRAPER = 66
     ANON_2020_AND_HARVARD = 80
     ANON_2020_AND_SCRAPER_AND_HARVARD = 82
+    
+    
 
 
 class Docket(BaseModel):
@@ -110,11 +112,3 @@ class Docket(BaseModel):
         description="The empaneled judges for the case. Currently an unused field but planned to be used in conjunction with the panel_str field.",
     )
     
-    def to_dict(self):
-        return {
-            "resource_uri": self.resource_uri,
-            "id": self.id,
-            "court": self.court,
-            "court_id": self.court_id,
-            "clusters": self.clusters,
-        }

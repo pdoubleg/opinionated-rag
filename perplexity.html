@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot Interface</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter var', sans-serif;
+        }
+        .search-suggestion {
+            background-color: #2D3748;
+            color: #CBD5E0;
+            border-radius: 9999px;
+            padding: 2px 8px;
+        }
+        .search-input-container {
+            background-color: #1A202C;
+            border-radius: 9999px;
+            padding: 8px 16px;
+            position: fixed;
+            bottom: 0;
+        }
+        .search-input {
+            background-color: transparent;
+            border: none;
+            color: white;
+        }
+        .search-input:focus {
+            outline: none;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-900 text-white">
+    <div class="flex">
+        <!-- Sidebar -->
+        <div class="w-64 h-screen bg-gray-800 p-6">
+            <div class="flex items-center mb-8">
+                <span class="text-xl font-bold">perplexity</span>
+            </div>
+            <nav>
+                <ul>
+                    <li class="mb-4">
+                        <a href="#" class="flex items-center">
+                            <i class="fas fa-home mr-2"></i>
+                            Home
+                        </a>
+                    </li>
+                    <li class="mb-4">
+                        <a href="#" class="flex items-center">
+                            <i class="fas fa-compass mr-2"></i>
+                            Discover
+                        </a>
+                    </li>
+                    <li class="mb-4">
+                        <a href="#" class="flex items-center">
+                            <i class="fas fa-book mr-2"></i>
+                            Library
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+        <!-- Main Content -->
+        <div class="flex-1 p-10">
+            <h1 class="text-4xl font-bold mb-10">Where knowledge begins</h1>
+            <div class="search-input-container w-full mb-8">
+                <input type="text" placeholder="Ask anything..." class="search-input w-full px-4 py-2">
+            </div>
+            <div class="flex flex-wrap gap-4">
+                <div class="search-suggestion">The origin of the Christmas tree</div>
+                <div class="search-suggestion">How much are Stradivarius violins?</div>
+                <div class="search-suggestion">What is deep-sea gigantism?</div>
+                <div class="search-suggestion">Why do we only see one side of the moon?</div>
+            </div>
+            <!-- Search Results Section -->
+            <div class="text-gray-200">
+                <!-- Search Results Title -->
+                <div class="flex items-center justify-between border-b border-gray-700 pb-4 mb-4">
+                    <h2 class="text-2xl font-semibold">How to use python for court listener api</h2>
+                    <div>
+                        <button class="text-gray-400 hover:text-gray-300">
+                            <i class="fas fa-plus mr-2"></i>Collection
+                        </button>
+                        <button class="text-gray-400 hover:text-gray-300">
+                            <i class="fas fa-ellipsis-h"></i>
+                        </button>
+                    </div>
+                </div>
+
+            <!-- Sources and Answer Section -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <!-- Sources Column -->
+                <div class="md:col-span-1">
+                    <h3 class="text-lg font-semibold mb-2">Sources</h3>
+                    <ul class="space-y-2">
+                        <li>
+                            <a href="#" class="hover:text-blue-400">paultopia/lawpy</a>
+                        </li>
+                        <li>
+                            <a href="#" class="hover:text-blue-400">CourtListener.com</a>
+                        </li>
+                        <li>
+                            <a href="#" class="hover:text-blue-400">Caselaw Access Project API</a>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Answer Column -->
+                <div class="md:col-span-3 bg-gray-800 p-4 rounded">
+                    <p class="mb-4">
+                        To use Python for the CourtListener API, you can utilize the "lawpy" library, which provides a pythonic interface to the CourtListener API. You will need to register on courtlistener.com to get an API token, which can be passed to the CourtListener constructor or stored in an environment variable called COURT_LISTENER...
+                    </p>
+                    <!-- Truncated for brevity -->
+                    <div class="mt-4">
+                        <button class="text-blue-400 hover:underline">Share</button>
+                        <button class="text-blue-400 hover:underline ml-4">Rewrite</button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</body>
+
+</html>

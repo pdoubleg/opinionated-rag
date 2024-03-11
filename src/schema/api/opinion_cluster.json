@@ -1,0 +1,312 @@
+{
+"$id": "opinion_cluster.json",
+"$schema": "http://json-schema.org/draft-07/schema#",
+"title": "OpinionCluster",
+"type": "object",
+"properties": {
+    "resource_uri": {
+    "type": "string",
+    "readOnly": true
+    },
+    "id": {
+    "type": "string",
+    "readOnly": true
+    },
+    "absolute_url": {
+    "type": "string",
+    "readOnly": true
+    },
+    "panel": {
+    "type": "array",
+    "items": {
+        "type": "string"
+    }
+    },
+    "non_participating_judges": {
+    "type": "array",
+    "items": {
+        "type": "string"
+    }
+    },
+    "docket_id": {
+    "type": "string",
+    "readOnly": true
+    },
+    "docket": {
+    "type": "string"
+    },
+    "sub_opinions": {
+    "type": "array",
+    "items": {
+        "type": "string"
+    }
+    },
+    "citations": {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+        "volume": {
+            "type": "integer",
+            "maximum": 32767,
+            "minimum": -32768,
+            "description": "The volume of the reporter"
+        },
+        "reporter": {
+            "type": "string",
+            "description": "The abbreviation for the reporter"
+        },
+        "page": {
+            "type": "string",
+            "description": "The 'page' of the citation in the reporter. Unfortunately, this is not an integer, but is a string-type because several jurisdictions do funny things with the so-called 'page'. For example, we have seen Roman numerals in Nebraska, 13301-M in Connecticut, and 144M in Montana."
+        },
+        "type": {
+            "enum": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+            ],
+            "type": "integer",
+            "description": "The type of citation that this is.",
+            "minimum": -32768,
+            "maximum": 32767
+        }
+        },
+        "required": [
+        "volume",
+        "reporter",
+        "page",
+        "type"
+        ]
+    }
+    },
+    "date_created": {
+    "type": "string",
+    "format": "date-time",
+    "readOnly": true,
+    "description": "The moment when the item was created."
+    },
+    "date_modified": {
+    "type": "string",
+    "format": "date-time",
+    "readOnly": true,
+    "description": "The last moment when the item was modified. A value in year 1750 indicates the value is unknown"
+    },
+    "judges": {
+    "type": "string",
+    "description": "The judges that participated in the opinion as a simple text string. This field is used when normalized judges cannot be placed into the panel field."
+    },
+    "date_filed": {
+    "type": "string",
+    "format": "date",
+    "description": "The date the cluster of opinions was filed by the court"
+    },
+    "date_filed_is_approximate": {
+    "type": "boolean",
+    "description": "For a variety of opinions getting the correct date filed isvery difficult. For these, we have used heuristics to approximate the date."
+    },
+    "slug": {
+    "type": "string",
+    "nullable": true,
+    "description": "URL that the document should map to (the slug)",
+    "maxLength": 75,
+    "pattern": "^[-a-zA-Z0-9_]+$"
+    },
+    "case_name_short": {
+    "type": "string",
+    "description": "The abridged name of the case, often a single word, e.g. 'Marsh'"
+    },
+    "case_name": {
+    "type": "string",
+    "description": "The shortened name of the case"
+    },
+    "case_name_full": {
+    "type": "string",
+    "description": "The full name of the case"
+    },
+    "scdb_id": {
+    "type": "string",
+    "description": "The ID of the item in the Supreme Court Database",
+    "maxLength": 10
+    },
+    "scdb_decision_direction": {
+    "enum": [
+        1,
+        2,
+        3
+    ],
+    "type": "integer",
+    "nullable": true,
+    "description": "the ideological \"direction\" of a decision in the Supreme Court database. More details at: http://scdb.wustl.edu/documentation.php?var=decisionDirection",
+    "minimum": -2147483648,
+    "maximum": 2147483647
+    },
+    "scdb_votes_majority": {
+    "type": "integer",
+    "maximum": 2147483647,
+    "minimum": -2147483648,
+    "nullable": true,
+    "description": "the number of justices voting in the majority in a Supreme Court decision. More details at: http://scdb.wustl.edu/documentation.php?var=majVotes"
+    },
+    "scdb_votes_minority": {
+    "type": "integer",
+    "maximum": 2147483647,
+    "minimum": -2147483648,
+    "nullable": true,
+    "description": "the number of justices voting in the minority in a Supreme Court decision. More details at: http://scdb.wustl.edu/documentation.php?var=minVotes"
+    },
+    "source": {
+    "enum": [
+        "C",
+        "R",
+        "CR",
+        "L",
+        "LC",
+        "LR",
+        "LCR",
+        "M",
+        "A",
+        "H",
+        "Z",
+        "ZA",
+        "ZD",
+        "ZC",
+        "ZH",
+        "ZLC",
+        "ZLR",
+        "ZLCR",
+        "ZR",
+        "ZCR",
+        "ZL",
+        "ZM",
+        "ZQ",
+        "U",
+        "CU",
+        "D",
+        "Q",
+        "QU",
+        "CRU",
+        "DU",
+        "LU",
+        "LCU",
+        "LRU",
+        "MU",
+        "RU",
+        "ZU",
+        "ZLU",
+        "ZDU",
+        "ZLRU",
+        "ZLCRU",
+        "ZCU",
+        "ZMU",
+        "ZRU",
+        "ZLCU"
+    ],
+    "type": "string",
+    "description": "the source of the cluster, one of: C (court website), R (public.resource.org), CR (court website merged with resource.org), L (lawbox), LC (lawbox merged with court), LR (lawbox merged with resource.org), LCR (lawbox merged with court and resource.org), M (manual input), A (internet archive), H (brad heath archive), Z (columbia archive), ZA (columbia merged with internet archive), ZD (columbia merged with direct court input), ZC (columbia merged with court), ZH (columbia merged with brad heath archive), ZLC (columbia merged with lawbox and court), ZLR (columbia merged with lawbox and resource.org), ZLCR (columbia merged with lawbox, court, and resource.org), ZR (columbia merged with resource.org), ZCR (columbia merged with court and resource.org), ZL (columbia merged with lawbox), ZM (columbia merged with manual input), ZQ (columbia merged with 2020 anonymous database), U (Harvard, Library Innovation Lab Case Law Access Project), CU (court website merged with Harvard), D (direct court input), Q (2020 anonymous database), QU (2020 anonymous database merged with Harvard), CU (court website merged with Harvard), CRU (court website merged with public.resource.org and Harvard), DU (direct court input merged with Harvard), LU (lawbox merged with Harvard), LCU (Lawbox merged with court website and Harvard), LRU (Lawbox merged with public.resource.org and with Harvard), MU (Manual input merged with Harvard), RU (public.resource.org merged with Harvard), ZU (columbia archive merged with Harvard), ZLU (columbia archive merged with Lawbox and Harvard), ZDU (columbia archive merged with direct court input and Harvard), ZLRU (columbia archive merged with lawbox, public.resource.org and Harvard), ZLCRU (columbia archive merged with lawbox, court website, public.resource.org and Harvard), ZCU (columbia archive merged with court website and Harvard), ZMU (columbia archive merged with manual input and Harvard), ZRU (columbia archive merged with public.resource.org and Harvard), ZLCU (columbia archive merged with lawbox, court website and Harvard)"
+    },
+    "procedural_history": {
+    "type": "string",
+    "description": "The history of the case as it jumped from court to court"
+    },
+    "attorneys": {
+    "type": "string",
+    "description": "The attorneys that argued the case, as free text"
+    },
+    "nature_of_suit": {
+    "type": "string",
+    "description": "The nature of the suit. For the moment can be codes or laws or whatever"
+    },
+    "posture": {
+    "type": "string",
+    "description": "The procedural posture of the case."
+    },
+    "syllabus": {
+    "type": "string",
+    "description": "A summary of the issues presented in the case and the outcome."
+    },
+    "headnotes": {
+    "type": "string",
+    "description": "Headnotes are summary descriptions of the legal issues discussed by the court in the particular case. They appear at the beginning of each case just after the summary and disposition. They are short paragraphs with a heading in bold face type. From Wikipedia - A headnote is a brief summary of a particular point of law that is added to the text of a courtdecision to aid readers in locating discussion of a legalissue in an opinion. As the term implies, headnotes appearat the beginning of the published opinion. Frequently, headnotes are value-added components appended to decisions by the publisher who compiles the decisions of a court for resale. As handed down by the court, a decision or written opinion does not contain headnotes. These are added later by an editor not connected to the court, but who instead works for a legal publishing house."
+    },
+    "summary": {
+    "type": "string",
+    "description": "A summary of what happened in the case. Appears at the beginning of the case just after the title of the case and court information."
+    },
+    "disposition": {
+    "type": "string",
+    "description": "Description of the procedural outcome of the case, e.g. Reversed, dismissed etc. Generally a short paragraph that appears just after the summary or synopsis"
+    },
+    "history": {
+    "type": "string",
+    "description": "History of the case (similar to the summary, but focused on past events related to this case). Appears at the beginning of the case just after the title of the case and court information"
+    },
+    "other_dates": {
+    "type": "string",
+    "description": "Other date(s) as specified in the text (case header). This may include follow-up dates."
+    },
+    "cross_reference": {
+    "type": "string",
+    "description": "Cross-reference citation (often to a past or future similar case). It does NOT identify this case."
+    },
+    "correction": {
+    "type": "string",
+    "description": "Publisher's correction to the case text. Example: Replace last paragraph on page 476 with this text: blah blah blah. This is basically an unstructured text that can be used to manually correct case content according to publisher's instructions. No footnotes is expected within it."
+    },
+    "citation_count": {
+    "type": "integer",
+    "maximum": 2147483647,
+    "minimum": -2147483648,
+    "description": "The number of times this document is cited by other opinion"
+    },
+    "precedential_status": {
+    "enum": [
+        "Published",
+        "Unpublished",
+        "Errata",
+        "Separate",
+        "In-chambers",
+        "Relating-to",
+        "Unknown"
+    ],
+    "type": "string",
+    "description": "The precedential status of document, one of: Published, Unpublished, Errata, Separate, In-chambers, Relating-to, Unknown"
+    },
+    "date_blocked": {
+    "type": "string",
+    "format": "date",
+    "nullable": true,
+    "description": "The date that this opinion was blocked from indexing by search engines"
+    },
+    "blocked": {
+    "type": "boolean",
+    "description": "Whether a document should be blocked from indexing by search engines"
+    },
+    "filepath_json_harvard": {
+    "type": "string",
+    "format": "binary",
+    "description": "Path to local storage of JSON collected from Harvard Case Law project containing available metadata, opinion and opinion cluster."
+    },
+    "arguments": {
+    "type": "string",
+    "description": "The attorney(s) and legal arguments presented as HTML text. This is primarily seen in older opinions and can contain case law cited and arguments presented to the judges."
+    },
+    "headmatter": {
+    "type": "string",
+    "description": "Headmatter is the content before an opinion in the Harvard CaseLaw import. This consists of summaries, headnotes, attorneys etc for the opinion."
+    }
+},
+"required": [
+    "panel",
+    "non_participating_judges",
+    "docket",
+    "sub_opinions",
+    "citations",
+    "date_filed"
+]
+}

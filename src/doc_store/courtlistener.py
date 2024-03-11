@@ -10,9 +10,7 @@ from dateutil import parser
 from devtools import pprint
 from html2text import html2text
 from pandas import DataFrame
-from typing import Optional, Tuple, Union, List, Set, Dict, Any
-from abc import ABC, abstractmethod
-from datetime import date, datetime
+from typing import Optional, Union, List, Set
 from src.schema.opinion_cluster_model import OpinionCluster
 from src.schema.citations import CAPCitation
 from src.doc_store.base import LegalDataSource
@@ -373,7 +371,13 @@ class CourtListenerCaseDataSource(LegalDataSource):
             Caselist: A data model for a list of "cases"
         """
         return self.search({"type": SEARCH_TYPES.OPINION, "q": "id:{}".format(case_id)})
+    
+    
+    def search_oral_arguments(self, query: str):
+        """Query the Oral Argument search api."""
+        return self.search({"type": SEARCH_TYPES.ORAL_ARGUMENT, "q": query})
 
+    
     def fetch_cases_cited_by(
         self, c, depth: int = 1, verbose: bool = True
     ) -> Caselist:

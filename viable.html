@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Instructor Feedback Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  body {
+    font-family: 'Open Sans', sans-serif;
+  }
+</style>
+</head>
+<body class="bg-gray-100">
+
+<!-- Main Container -->
+<div class="min-h-screen bg-gray-100 p-8">
+  <!-- Top Navigation -->
+  <nav class="bg-white shadow mb-8 py-6 px-5 rounded-lg">
+    <div class="max-w-6xl mx-auto flex items-center justify-between">
+      <div class="text-xl font-bold">Instructor Feedback</div>
+      <div class="space-x-4 flex items-center">
+        <a href="#" class="text-gray-600">ANALYSIS</a>
+        <a href="#" class="text-gray-600">ASK VIABLE</a>
+        <a href="#" class="text-gray-600">CHARTS & GRAPHS</a>
+        <a href="#" class="text-gray-600"><i class="fas fa-cog"></i></a>
+      </div>
+    </div>
+  </nav>
+  
+  <!-- Content -->
+  <div class="max-w-6xl mx-auto">
+    <!-- Header -->
+    <header class="flex items-center justify-between pb-6">
+      <h1 class="text-2xl font-bold">"Instructor Feedback" Themes</h1>
+      <button class="bg-blue-500 text-white px-4 py-2 rounded shadow">SAVE TABLE</button>
+    </header>
+    
+    <!-- Data Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <!-- Card 1 -->
+      <div class="bg-white p-6 rounded-lg shadow-lg">
+        <div class="flex items-start justify-between">
+          <div class="text-red-500">
+            <i class="fas fa-exclamation-circle"></i>
+          </div>
+          <div class="text-gray-500 text-sm">
+            <i class="fas fa-ellipsis-v"></i>
+          </div>
+        </div>
+        <div class="mt-4">
+          <div class="text-gray-800 text-xl font-semibold">Too many shoutouts</div>
+          <div class="text-gray-500 mt-2">Complaint in Helpdesk and Chat analysis</div>
+          <div class="flex items-center justify-between mt-4">
+            <div class="text-gray-800 text-2xl font-bold">1,564</div>
+            <div class="text-red-600 font-bold uppercase text-xs">Critical</div>
+          </div>
+          <div class="mt-2">
+            <img src="https://placehold.co/320x80.png" alt="Red and pink wave-like graph showing critical complaint volume over time." class="w-full h-20 object-cover rounded">
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 2 -->
+      <div class="bg-white p-6 rounded-lg shadow-lg">
+        <div class="flex items-start justify-between">
+          <div class="text-red-500">
+            <i class="fas fa-exclamation-circle"></i>
+          </div>
+          <div class="text-gray-500 text-sm">
+            <i class="fas fa-ellipsis-v"></i>
+          </div>
+        </div>
+        <div class="mt-4">
+          <div class="text-gray-800 text-xl font-semibold">Too many shoutouts</div>
+          <div class="text-gray-500 mt-2">Complaint in Helpdesk and Chat analysis</div>
+          <div class="flex items-center justify-between mt-4">
+            <div class="text-gray-800 text-2xl font-bold">1,564</div>
+            <div class="text-red-600 font-bold uppercase text-xs">Critical</div>
+          </div>
+          <div class="mt-2">
+            <img src="https://placehold.co/320x80.png" alt="Red and pink wave-like graph showing critical complaint volume over time." class="w-full h-20 object-cover rounded">
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 2 -->
+      <div class="bg-white p-6 rounded-lg shadow-lg">
+        <div class="flex items-start justify-between">
+          <div class="text-red-500">
+            <i class="fas fa-exclamation-circle"></i>
+          </div>
+          <div class="text-gray-500 text-sm">
+            <i class="fas fa-ellipsis-v"></i>
+          </div>
+        </div>
+        <div class="mt-4">
+          <div class="text-gray-800 text-xl font-semibold">Too many shoutouts</div>
+          <div class="text-gray-500 mt-2">Complaint in Helpdesk and Chat analysis</div>
+          <div class="flex items-center justify-between mt-4">
+            <div class="text-gray-800 text-2xl font-bold">1,564</div>
+            <div class="text-red-600 font-bold uppercase text-xs">Critical</div>
+          </div>
+          <div class="mt-2">
+            <img src="https://placehold.co/320x80.png" alt="Red and pink wave-like graph showing critical complaint volume over time." class="w-full h-20 object-cover rounded">
+          </div>
+        </div>
+      </div>
+      <!-- Repeat the card component for each card, changing the content as per screenshot -->
+      
+    </div>
+
+    <!-- Text Content -->
+    <div class="mt-8">
+      <p class="text-gray-800">The most common reported injury is sprained ankles. 78.2% of the time the sprained ankle happened because of a loose belt on the Tread.</p>
+    </div>
+    
+  </div>
+</div>
+
+</body>
+</html>

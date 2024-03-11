@@ -27,6 +27,39 @@ load_dotenv()
 T = TypeVar('T', bound=BaseModel)
 
 
+def download_mp3_tempfile(url: str) -> str:
+    """
+    Downloads an MP3 file from the given URL and saves it to a temporary file path.
+
+    Args:
+        url (str): The URL of the MP3 file.
+
+    Returns:
+        str: The file path of the downloaded MP3 file.
+    """
+    import requests
+    from tempfile import NamedTemporaryFile
+
+    try:
+        # Send a GET request to the URL
+        response = requests.get(url, stream=True)
+
+        # Raise an exception if the request was unsuccessful
+        response.raise_for_status()
+
+        # Create a named temporary file in binary write mode, which will be automatically deleted
+        with NamedTemporaryFile(delete=False, suffix='.mp3', mode='wb') as temp_file:
+            for chunk in response.iter_content(chunk_size=8192):
+                # Write the content chunk by chunk to the file
+                temp_file.write(chunk)
+            file_size = os.path.getsize(temp_file.name) / (1024 * 1024)
+            print(f"File downloaded and saved as {temp_file.name}\nFile Size: {file_size:.2f} MB")
+            return temp_file.name
+    except requests.RequestException as e:
+        print(f"An error occurred: {e}")
+        return ""
+
+
 def filter_decisions_with_text(decisions: List[BaseModel]) -> List[BaseModel]:
     """
     Filters a list of Decision objects to include only those with text in either the 

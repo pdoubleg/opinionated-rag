@@ -22,7 +22,7 @@ body, html {
     height: 100%;
     background-color: #f8f8f8; /* Light background */
     color: #333; /* Dark text for contrast */
-    font-family: 'Garamond', serif; /* Specific font for the title page */
+    font-family: 'Arial', serif; /* Specific font for the title page */
 }
 
 .cover-image {
@@ -47,8 +47,9 @@ h1, h2, h3, h4 {
 }
 
 h1 {
-    font-size: 3em; /* Large title for the title page */
+    font-size: 3.5em; /* Large title for the title page */
     margin-bottom: 0.5em;
+    font-weight: bold;
 }
 
 h2 {
@@ -63,10 +64,6 @@ h4 {
     font-size: 14pt;
 }
 
-.subtitle, .author, .date {
-    font-size: 1.2em; /* Subtitle and details for the title page */
-    margin: 0.5em 0;
-}
 
 hr {
     margin-top: 1em;

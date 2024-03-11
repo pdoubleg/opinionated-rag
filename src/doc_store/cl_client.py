@@ -5,7 +5,7 @@ import json
 import os
 from dotenv import load_dotenv
 from typing import Any, Dict, List, Optional, Union
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
 from pydantic import BaseModel, field_validator
 
 import requests
@@ -210,16 +210,15 @@ class SearchResult(BaseModel):
         return v
     
     @field_validator("citation", mode="before")
-    def fix_citations(cls, v: Union[date, str]) -> str:
+    def fix_citations(cls, v: Union[List[str], str]) -> str:
         """
-        Serializes the decision_date field to a string format.
+        Converts a list of citations into a comma-separated string or returns the citation string as is.
 
         Args:
-            decision_date (Union[date, str]): The decision date to be serialized.
-            _info: Additional information passed to the serializer, not used.
+            v (Union[List[str], str]): The citation(s) to be processed. Can be a list of strings or a single string.
 
         Returns:
-            str: The serialized decision date as a string.
+            str: A single string of citations separated by commas if `v` is a list, or `v` itself if it's a string.
         """
         if isinstance(v, list):
             return ", ".join(v)

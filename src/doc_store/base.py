@@ -13,13 +13,9 @@ from src.schema.decisions import Decision, DecisionWithContext
 
 client = instructor.patch(openai.OpenAI())
 
-
 class APICommunicationError(Exception):
     
     pass
-
-
-
 
 class CitationAnalysis(BaseModel):
     """Information about a legal citation"""

@@ -202,7 +202,7 @@ class Decision(BaseModel):
     @field_validator("decision_date", mode="before")
     def decision_date_must_include_day(
         cls, v: Union[datetime.date, str]
-    ) -> Union[datetime.date, str]:
+    ) -> Union[date, str]:
         """
         Ensures the decision_date includes a day if provided as a string in YYYY-MM format.
 

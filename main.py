@@ -22,7 +22,7 @@ import textwrap
 from html2text import html2text
 from bs4 import BeautifulSoup
 
-from weasyprint import HTML, CSS, default_url_fetcher
+from weasyprint import HTML, CSS
 from weasyprint.text.fonts import FontConfiguration
 
 
@@ -307,7 +307,6 @@ if api_key_:
         full_report = ""
         for completion in openai.chat.completions.create(
             model="gpt-4-1106-preview",
-            # model='gpt-4',
             temperature=1,
             messages=[
                 {
@@ -359,7 +358,7 @@ if api_key_:
 
             return int(width), int(height)
 
-    def create_pdf(image_path: str, text: str, research: str, content: str) -> str:
+    def create_pdf(image_path: str, text: str, research: str, content: str, base_dir: str = '.') -> str:
         """
         Generate a PDF from HTML content and save it to a named temporary file.
 
@@ -368,23 +367,25 @@ if api_key_:
             text (str): Text content to include in the PDF.
             research (str): Research content to include in the PDF.
             content (str): Additional content to include in the PDF.
+            base_dir (str): Base directory to save the PDF file. Defaults to current directory.
 
         Returns:
             str: The full file path to the generated PDF.
         """
-        # Convert markdown content to HTML
         text_html = markdown.markdown(text)
         research_html = markdown.markdown(research)
         content_html = markdown.markdown(content)
- 
-        # HTML content for the PDF
+        
+        image_path_full = f"file:///{image_path}"
+
+        # style_path = os.path.join(base_dir, 'src', 'style.css')
         html_content = f"""
             <html>
             <head>
                 <link rel="stylesheet" type="text/css" href="src/style.css">
             </head>
             <body>
-                <img src="{image_path}" alt="Cover Image" class="cover-image">
+                <img src="{image_path_full}" alt="Cover Image" class="cover-image">
                 {text_html}
                 {research_html}
                 {content_html}
@@ -392,11 +393,12 @@ if api_key_:
             </html>
             """
 
-        # Create a named temporary file for the PDF
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmpfile:
+        temp_dir = os.path.join(base_dir, 'temp')
+        os.makedirs(temp_dir, exist_ok=True)
+        with tempfile.NamedTemporaryFile(dir=temp_dir, delete=False, suffix=".pdf") as tmpfile:
             pdf_path = tmpfile.name
 
-        # Generate the PDF
+        # base_url = os.path.join(base_dir, 'temp')
         html = HTML(string=html_content)
         css = CSS(filename="src/style.css")
         html.write_pdf(pdf_path, stylesheets=[css])
@@ -404,29 +406,35 @@ if api_key_:
         return pdf_path
 
     # Convert base64 to file format
-
-    def base64_to_image(base64_image: str) -> str:
+    def base64_to_image(base64_image: str, base_dir: str = '.') -> str:
         """
         Convert a base64 encoded image to a temporary image file and return its full file path.
 
         Args:
             base64_image (str): The base64 encoded image string.
+            base_dir (str): Base directory to save the temporary image file. Defaults to current directory.
 
         Returns:
             str: The full file path to the temporary image file.
         """
         image_data = base64.b64decode(base64_image)
         image = PILImage.open(io.BytesIO(image_data))
-        # Convert RGBA to RGB if necessary
         if image.mode == 'RGBA':
             image = image.convert('RGB')
         
-        # Create a named temporary file for the image
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmpfile:
+        temp_dir = os.path.join(base_dir, 'temp')
+        os.makedirs(temp_dir, exist_ok=True)
+        with tempfile.NamedTemporaryFile(dir=temp_dir, delete=False, suffix=".jpg") as tmpfile:
             image_path = tmpfile.name
             image.save(image_path)
         
         return image_path
+    
+    def show_pdf(file_path):
+        with open(file_path,"rb") as f:
+            base64_pdf = base64.b64encode(f.read()).decode('utf-8')
+        pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="800" height="800" type="application/pdf"></iframe>'
+        st.markdown(pdf_display, unsafe_allow_html=True)
 
     # File uploader allows user to add their own image
     uploaded_file = st.file_uploader("Upload an image", type=["jpg", "png", "jpeg"])
@@ -511,13 +519,13 @@ if api_key_:
                 prompt_text = (
                     "You are a highly knowledgeable structural damage appraiser. "
                     "Your task is to generate a highly concise description of the image focusing on repairs needed. "
-                    # "Your task is to examine the following image in detail. "
-                    # "Begin with a descriptive title caption in bold. "
-                    # "Provide a comprehensive, scope-of-repair-focused explanation of what the image depicts. "
-                    # "Itemize key repair scope items, and present your analysis in clear, well-structured markdown format. "
-                    # "If applicable, include any relevant considerations such as demolition, or mitigation to enhance the scope explanation. "
-                    # "If possible, include rough approximations of time and material for each scope item. "
-                    # "TITLE: "
+                    "Your task is to examine the following image in detail. "
+                    "Begin with a descriptive title caption in bold. "
+                    "Provide a comprehensive, scope-of-repair-focused explanation of what the image depicts. "
+                    "Itemize key repair scope items, and present your analysis in clear, well-structured markdown format. "
+                    "If applicable, include any relevant considerations such as demolition, or mitigation to enhance the scope explanation. "
+                    "If possible, include rough approximations of time and material for each scope item. "
+                    "TITLE: "
                 )
 
             elif prompt_type == "Diagram Inspector":
@@ -669,29 +677,30 @@ if api_key_:
 
                         st.session_state.analyze_button_clicked = False
                         # Create the PDF
-                        pdf_path = create_pdf(
-                            image_path,
-                            full_response,
-                            full_report,
-                            internet_content,
-                        )
-                    else:
-
-                        pdf_path = create_pdf(
-                                image_path=image_path,
-                                text=full_response,
-                                research=" ",
-                                content=" ",
-                            )
+                    #     pdf_path = create_pdf(
+                    #         image_path,
+                    #         full_response,
+                    #         full_report,
+                    #         internet_content,
+                    #     )
+                    # else:
+                    #     pdf_path = create_pdf(
+                    #             image_path=image_path,
+                    #             text=full_response,
+                    #             research=" ",
+                    #             content=" ",
+                    #         )
+                    # with st.expander:  
+                    #     show_pdf(pdf_path)
                     st.markdown("___")
                     # Provide the download button
-                    with open(pdf_path, "rb") as pdf_file:
-                        PDFbyte = pdf_file.read()
+                    # with open(pdf_path, "rb") as pdf_file:
+                    #     PDFbyte = pdf_file.read()
 
-                    st.download_button(label="Export_Report",
-                                        data=PDFbyte,
-                                        file_name="report.pdf",
-                                        mime='application/octet-stream')
+                    # st.download_button(label="Export_Report",
+                    #                     data=PDFbyte,
+                    #                     file_name="report.pdf",
+                    #                     mime='application/octet-stream')
                     
 
                     # with open(st.session_state.pdf_path, "rb") as file:
