@@ -58,16 +58,20 @@ TEXT_COLUMN_NAME = "body"
 
 
 class ResearchPastQuestions(BaseModel):
-    df: pd.DataFrame = Field(...)
+    df: pd.DataFrame = Field(
+        ...,
+    )
     filter_criteria: Optional[Dict[str, Any] | Filter] = Field(
         None,
         description="Pre-filters for top-k vector search based on column value pairs.",
     )
     include_sources: Optional[bool] = Field(
-        True, description="Whether model output should include source text."
+        True, 
+        description="Whether model output should include source text."
     )
     must_have_opinion: Optional[bool] = Field(
-        False, description="Whether to limit search to cases with available opinions."
+        False, 
+        description="Whether to limit search to cases with available opinions."
     )
     linkable_citations: Optional[bool] = Field(
         True,

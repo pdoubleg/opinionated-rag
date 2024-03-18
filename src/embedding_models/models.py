@@ -3,20 +3,33 @@ from functools import cached_property
 import os
 import pandas as pd
 import pyarrow as pa
-from typing import Callable, List, Tuple
+from typing import Callable, Dict, List, Tuple, Any
+from collections import defaultdict
+import os
+import pickle
+from typing import List, Tuple
+
+import numpy as np
+import scipy
+import torch
+import tqdm
 
 import tiktoken
 from dotenv import load_dotenv
 from openai import AsyncOpenAI, OpenAI
 
-from sentence_transformers import SentenceTransformer
-import torch
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoTokenizer, AutoModel, AutoModelForMaskedLM
 
 from src.embedding_models.base import EmbeddingModel, EmbeddingModelsConfig, Reranker
 from src.llm.utils import retry_with_exponential_backoff
 from src.types import Embeddings
 from src.llm.utils import batched
+
+from FlagEmbedding import BGEM3FlagModel
+
+from llama_index.core.bridge.pydantic import PrivateAttr
+from llama_index.core.base.embeddings.base import BaseEmbedding
+
 
 
 class ColbertReranker(Reranker):
@@ -67,6 +80,7 @@ class ColbertReranker(Reranker):
         pd.DataFrame
             The reranked results as a DataFrame.
         """
+        
         combined_results = (
             pd.concat([vector_results, fts_results])
             .drop_duplicates()
@@ -77,7 +91,7 @@ class ColbertReranker(Reranker):
         tokenizer, model = self._model
 
         # Encode the query
-        query_encoding = tokenizer(query, return_tensors="pt")
+        query_encoding = tokenizer(query, return_tensors="pt", truncation=True, max_length=512)
         query_embedding = model(**query_encoding).last_hidden_state.mean(dim=1)
         scores = []
         # Get score for each document
@@ -132,7 +146,7 @@ class ColbertReranker(Reranker):
         tokenizer, model = self._model
 
         # Encode the query
-        query_encoding = tokenizer(query, return_tensors="pt")
+        query_encoding = tokenizer(query, return_tensors="pt", truncation=True, max_length=512)
         query_embedding = model(**query_encoding).last_hidden_state.mean(dim=1)
         scores = []
 
@@ -208,7 +222,7 @@ class ColbertReranker(Reranker):
 class OpenAIEmbeddingsConfig(EmbeddingModelsConfig):
     model_type: str = "openai"
     model_name: str = "text-embedding-ada-002"
-    api_key: str = ""
+    api_key: str = os.getenv("OPENAI_API_KEY")
     organization: str = ""
     dims: int = 1536
     context_length: int = 8192
@@ -333,3 +347,71 @@ def embedding_model(embedding_fn_type: str = "openai") -> EmbeddingModel:
         return OpenAIEmbeddings  # type: ignore
     else:  # default sentence transformer
         return SentenceTransformerEmbeddings  # type: ignore
+    
+    
+class BGE_M3Embeddings(BaseEmbedding):
+    _model: BGEM3FlagModel = PrivateAttr()
+    _encode_options: dict = PrivateAttr()
+
+    def __init__(
+        self,
+        model_name: str = 'BAAI/bge-m3',
+        use_fp16: bool = True,
+        **kwargs: Any,
+    ) -> None:
+        self._model = BGEM3FlagModel(model_name, use_fp16=use_fp16)
+        self._encode_options = kwargs
+        super().__init__(**kwargs)
+
+    @classmethod
+    def class_name(cls) -> str:
+        return "bgem3flag"
+
+    async def _aget_query_embedding(self, query: str) -> List[float]:
+        return self._get_query_embedding(query)
+
+    async def _aget_text_embedding(self, text: str) -> List[float]:
+        return self._get_text_embedding(text)
+
+    def _get_query_embedding(self, query: str) -> List[float]:
+        embeddings = self._model.encode([query])['dense_vecs']
+        return embeddings[0].tolist()
+
+    def _get_text_embedding(self, text: str) -> List[float]:
+        embeddings = self._model.encode([text], **self._encode_options)['dense_vecs']
+        return embeddings[0].tolist()
+
+    def _get_text_embeddings(self, texts: List[str]) -> List[List[float]]:
+        embeddings = self._model.encode(texts, **self._encode_options)['dense_vecs']
+        return [embedding.tolist() for embedding in embeddings]
+    
+    
+    def get_all_embeddings(self, text: str) -> Dict[str, Any]:
+        """Get all types of embeddings for a given text."""
+        return self._model.encode([text], **self._encode_options)
+
+    def colbert_score(self, query_embeddings: Dict[str, Any], doc_embeddings: Dict[str, Any]) -> float:
+        """Calculate the Colbert score between query and document embeddings.
+
+        Args:
+            query_embeddings (Dict[str, Any]): Embeddings for the query, containing 'colbert_vecs'.
+            doc_embeddings (Dict[str, Any]): Embeddings for the document, containing 'colbert_vecs'.
+
+        Returns:
+            float: The Colbert similarity score.
+        """
+        query_colbert_vecs = torch.tensor(query_embeddings['colbert_vecs'])
+        doc_colbert_vecs = torch.tensor(doc_embeddings['colbert_vecs'])
+
+        # Expand dimensions for cosine similarity calculation
+        expanded_query = query_colbert_vecs.unsqueeze(2)
+        expanded_doc = doc_colbert_vecs.unsqueeze(1)
+
+        # Calculate cosine similarity
+        sim_matrix = torch.nn.functional.cosine_similarity(expanded_query, expanded_doc, dim=-1)
+
+        # Calculate max similarity score
+        max_sim_scores, _ = torch.max(sim_matrix, dim=2)
+        avg_max_sim = torch.mean(max_sim_scores, dim=1)
+
+        return avg_max_sim.item()

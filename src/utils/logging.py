@@ -10,6 +10,7 @@ import colorlog
 from rich.console import Console
 
 
+
 @lru_cache()
 def get_logger(
     name: Optional[str] = None,
@@ -68,6 +69,7 @@ def setup_logging(
 
     logger.addHandler(handler)
     logger.propagate = False
+    return logger
 
 
 def add_logging_methods(logger: logging.Logger) -> None:
@@ -105,7 +107,8 @@ def add_logging_methods(logger: logging.Logger) -> None:
 
 
 # Define a function to set up the colored logger
-def setup_colored_logging() -> None:
+def setup_colored_logging(name) -> logging.Logger:
+    logger = setup_logger(name)
     # Define the log format with color codes
     log_format = "%(log_color)s%(asctime)s - %(levelname)s - %(message)s%(reset)s"
     # Create a color formatter
@@ -124,10 +127,10 @@ def setup_colored_logging() -> None:
     # Configure the root logger to use the color formatter
     handler = logging.StreamHandler()
     handler.setFormatter(color_formatter)
-    logger = logging.getLogger()
+    logger.handlers.clear()
     logger.addHandler(handler)
-    # logger.setLevel(logging.DEBUG)
-
+    logger.propagate = False
+    return logger
 
 def setup_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     """

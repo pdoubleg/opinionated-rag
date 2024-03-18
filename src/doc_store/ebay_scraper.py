@@ -73,8 +73,8 @@ class eBayProduct(BaseModel):
     condition: Optional[str] = None
     top_rated: Optional[bool] = None
     reviews: Optional[int] = None
-    watchers_or_sold: Optional[int] = None
-    buy_now_extension: Optional[bool] = None
+    watchers_or_sold: Optional[bool | int | str] = None
+    buy_now_extension: Optional[bool | int | str] = None
     delivery: Optional[Delivery] = None
     bids: Optional[Bids] = None
 

@@ -353,6 +353,34 @@ class Decision(BaseModel):
         )
         self.context_citation = citation if isinstance(citation, str) else citation.cite
 
+    def set_citation_context(
+        self,
+        citations: List[Union[str, CAPCitation, CaseCitation]],
+        words_before: int = 500,
+        words_after: int = 500,
+    ) -> None:
+        """
+        Extracts contexts around citations found in the opinion text and sets the context attribute.
+        Tries each citation in the provided list, taking the first that returns a non-empty string.
+        If no citations return a context, sets the context attribute to None.
+
+        Args:
+            citations (List[Union[str, CAPCitation, CaseCitation]]): The citations to find the context for.
+            words_before (int): The number of words before the citation to include in the context.
+            words_after (int): The number of words after the citation to include in the context.
+        """
+        for citation in citations:
+            context = self.extract_citation_contexts(
+                citation=citation, words_before=words_before, words_after=words_after
+            )
+            if context:
+                self.context = context
+                self.context_citation = citation if isinstance(citation, str) else citation.cite
+                return
+        self.context = None
+        self.context_citation = None
+
+
     @property
     def opinion_text(self) -> Optional[str]:
         """
@@ -441,8 +469,8 @@ class DecisionWithContext(Decision):
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
-        self.context = context
-        self.context_citation = context_citation
+        self.parallel_context = context
+        self.parallel_context_citation = context_citation
 
 
 def extract_parallel_citation_context(
@@ -489,7 +517,7 @@ def extract_parallel_citation_context(
 
         # Create a new DecisionWithContext object, copying the original decision and adding the extracted context
         updated_decision = DecisionWithContext(
-            **decision.__dict__, context=extracted_context, context_citation=citation
+            **decision.__dict__, parallel_context=extracted_context, parallel_context_citation=citation
         )
         updated_decisions.append(updated_decision)
 

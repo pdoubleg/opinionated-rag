@@ -2,7 +2,7 @@ import asyncio
 import os
 from dotenv import load_dotenv
 import numpy as np
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, OpenAI
 import pandas as pd
 import faiss
 from typing import Dict, List, Tuple, Optional, Any
@@ -56,29 +56,45 @@ class SemanticSearch:
         self.embedding_col_name = embedding_col_name
         self.model_name="text-embedding-ada-002"
         load_dotenv()
-        self.client = AsyncOpenAI()
-
-    async def aget_embedding(self, text: str):
-        response = await self.client.embeddings.create(
+        self.aclient = AsyncOpenAI()
+        self.client = OpenAI()
+        
+    def get_embedding(self, text: str):
+        response = self.client.embeddings.create(
             input=text, model=self.model_name
         )
         return response.data[0].embedding
 
-    def aget_embedding_df(self, df: pd.DataFrame, text_col: str):
-        loop = asyncio.get_event_loop()
-        tasks = [
-            loop.create_task(self.aget_embedding(row[text_col]))
-            for _, row in df.iterrows()
-        ]
-        return loop.run_until_complete(asyncio.gather(*tasks))
+    async def aget_embedding(self, text: str):
+        response = await self.aclient.embeddings.create(
+            input=text, model=self.model_name
+        )
+        return response.data[0].embedding
     
-    async def encode_string(self, text: str) -> np.ndarray:
+    
+    def get_embedding_df(self, df: pd.DataFrame, text_col: str) -> List[np.ndarray]:
+        embeddings = [self.encode_string(row[text_col]) for _, row in df.iterrows()]
+        return embeddings
+
+    async def aget_embedding_df(self, df: pd.DataFrame, text_col: str):
+        tasks = [self.aget_embedding(row[text_col]) for _, row in df.iterrows()]
+        return await asyncio.gather(*tasks)
+
+    # def aget_embedding_df(self, df: pd.DataFrame, text_col: str):
+    #     loop = asyncio.get_event_loop()
+    #     tasks = [
+    #         loop.create_task(self.aget_embedding(row[text_col]))
+    #         for _, row in df.iterrows()
+    #     ]
+    #     return loop.run_until_complete(asyncio.gather(*tasks))
+    
+    async def aencode_string(self, text: str) -> np.ndarray:
         embedding = await self.aget_embedding(text)
         return np.array(embedding)
 
-    # def encode_string(self, text: str) -> np.ndarray:
-    #     embedding = self.aget_embedding(text)
-    #     return np.array(embedding)
+    def encode_string(self, text: str) -> np.ndarray:
+        embedding = self.get_embedding(text)
+        return np.array(embedding)
 
     @staticmethod
     def normalize_embeddings(embeddings: np.ndarray) -> np.ndarray:
@@ -102,7 +118,7 @@ class SemanticSearch:
         return embeddings
 
     def build_faiss_index(
-        self, embeddings: np.ndarray, use_cosine_similarity: bool = False
+        self, embeddings: np.ndarray, use_cosine_similarity: bool
     ) -> faiss.Index:
         if use_cosine_similarity:
             # Check and normalize the embeddings if needed
@@ -122,6 +138,7 @@ class SemanticSearch:
         use_cosine_similarity: bool,
         similarity_threshold: float,
     ) -> Tuple[List[int], np.ndarray]:
+        
         distances, indices = index.search(
             embedding.reshape(1, -1).astype("float32"), top_n + 1
         )
@@ -137,7 +154,8 @@ class SemanticSearch:
 
         return indices[:top_n], similarity_scores[:top_n]
 
-    async def query_similar_documents(
+
+    async def aquery_similar_documents(
         self,
         text: str,
         top_n: int,
@@ -145,7 +163,7 @@ class SemanticSearch:
         use_cosine_similarity: bool = True,
         similarity_threshold: float = 0.98,
     ) -> pd.DataFrame:
-        query_embedding = await self.encode_string(text)
+        query_embedding = await self.aencode_string(text)
 
         if filter_criteria is not None:
             filtered_df = self.df.copy()
@@ -164,6 +182,40 @@ class SemanticSearch:
         )
         results_df = filtered_df.iloc[indices].copy()
         # Add 'similarity scores' to the DataFrame
-        results_df["sim_score_dense"] = sim_scores
+        results_df["search_type"] = "vector"
+        results_df["score"] = sim_scores
+
+        return results_df
+    
+    
+    def query_similar_documents(
+        self,
+        text: str,
+        top_n: int,
+        filter_criteria: Optional[dict | Filter] = None,
+        use_cosine_similarity: bool = True,
+        similarity_threshold: float = 0.98,
+    ) -> pd.DataFrame:
+        query_embedding = self.encode_string(text)
+
+        if filter_criteria is not None:
+            filtered_df = self.df.copy()
+            if isinstance(filter_criteria, Filter):
+                filter_criteria = filter_criteria.where
+            for key, value in filter_criteria.items():
+                filtered_df = filtered_df[filtered_df[key] == value]
+        else:
+            filtered_df = self.df.copy()
+
+        filtered_embeddings = np.vstack(filtered_df[self.embedding_col_name].values)
+
+        index_ = self.build_faiss_index(filtered_embeddings, use_cosine_similarity)
+        indices, sim_scores = self.search_faiss_index(
+            index_, query_embedding, top_n, use_cosine_similarity, similarity_threshold
+        )
+        results_df = filtered_df.iloc[indices].copy()
+        # Add 'similarity scores' to the DataFrame
+        results_df["search_type"] = "vector"
+        results_df["score"] = sim_scores
 
         return results_df

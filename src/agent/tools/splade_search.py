@@ -3,11 +3,16 @@ import pandas as pd
 import torch
 from transformers import AutoTokenizer, AutoModelForMaskedLM
 from typing import List, Optional
+from tqdm import tqdm
 
+from src.agent.tools.semantic_search import Filter
+from src.utils.logging import setup_colored_logging
 
-class SpladeSearch:
+logger = setup_colored_logging(__name__)
+
+class SparseEmbeddingsSplade:
     def __init__(
-        self, df: pd.DataFrame, text_column: str, splade_column: Optional[str]
+        self, df: pd.DataFrame, text_column: str, splade_column: str | None = None
     ):
         self.df = df
         self.text_column = text_column
@@ -17,12 +22,16 @@ class SpladeSearch:
         self.sparse_model = AutoModelForMaskedLM.from_pretrained(self.sparse_model_id)
 
         if not self.splade_column:
-            self.df = self.add_splade_embeddings_to_df(self.df)
+            logger.info("Generating sparce (SPLADE) embeddings...")
+            self.df = self.add_splade_embeddings_to_df()
             self.splade_column = "splade_embeddings"
+            logger.info("Done! Embeddings have been saved to self.df['splade_embeddings']")
+        
+        logger.info(f"Using pre-computed '{self.text_column}' embeddings from existing column: {self.splade_column}")
 
     def splade_embed_documents(self, docs: List[str]) -> List[np.ndarray]:
         """
-        Embeds a list of documents using a sparse model.
+        Embeds a list of documents using a sparse model and displays progress.
 
         Args:
             docs (List[str]): List of documents to be embedded.
@@ -30,8 +39,9 @@ class SpladeSearch:
         Returns:
             List[np.ndarray]: List of document embeddings.
         """
-        sparce_embeddings = []
-        for doc in docs:
+
+        sparse_embeddings = []
+        for doc in tqdm(docs, desc="Embedding documents"):
             tokens = self.tokenizer(
                 doc, return_tensors="pt", padding=True, truncation=True
             )
@@ -47,8 +57,8 @@ class SpladeSearch:
                 .cpu()
                 .numpy()
             )
-            sparce_embeddings.append(doc_embedding)
-        return sparce_embeddings
+            sparse_embeddings.append(doc_embedding)
+        return sparse_embeddings
 
     def splade_embed_query(self, query: str) -> np.ndarray:
         """
@@ -76,10 +86,25 @@ class SpladeSearch:
             .numpy()
         )
         return query_embedding
+    
+    @staticmethod
+    def sigmoid_similarity(scores: List[float]) -> List[float]:
+        """
+        Apply a sigmoid function to similarity scores to map them to a (0, 1) range.
+
+        Args:
+            scores (List[float]): The raw dot product similarity scores.
+
+        Returns:
+            List[float]: The transformed similarity scores.
+        """
+        return [1 / (1 + np.exp(-score)) for score in scores]
+
 
     @staticmethod
     def dot_product_similarity(
-        doc_embeddings: np.ndarray, query_embedding: np.ndarray
+        doc_embeddings: np.ndarray, 
+        query_embedding: np.ndarray,
     ) -> List[float]:
         """
         Calculate the dot product similarity between the query embedding and each document embedding.
@@ -111,7 +136,11 @@ class SpladeSearch:
         return self.df
 
     def query_similar_documents(
-        self, query: str, top_n: int, filter_criteria: Optional[dict]
+        self, 
+        query: str, 
+        top_n: int = 20, 
+        filter_criteria: dict | Filter | None = None,
+        norm_score: bool = False,
     ) -> pd.DataFrame:
         """
         Search documents based on the similarity of their embeddings to the query embedding.
@@ -126,16 +155,23 @@ class SpladeSearch:
         """
         if filter_criteria is not None:
             filtered_df = self.df.copy()
+            if isinstance(filter_criteria, Filter):
+                filter_criteria = filter_criteria.where
             for key, value in filter_criteria.items():
                 filtered_df = filtered_df[filtered_df[key] == value]
         else:
             filtered_df = self.df.copy()
+
         query_embedding = self.splade_embed_query(query)
         document_embeddings = filtered_df[self.splade_column].tolist()
         similarities = self.dot_product_similarity(document_embeddings, query_embedding)
-        filtered_df["sim_score_sparce"] = similarities
+        if norm_score:
+            similarities = self.sigmoid_similarity(similarities)
+            
+        filtered_df["score"] = similarities
+        filtered_df["search_type"] = "splade"
         ranked_df = filtered_df.sort_values(
-            by="sim_score_sparce", ascending=False
+            by="score", ascending=False
         ).head(top_n)
         return ranked_df
 
@@ -192,3 +228,4 @@ class SpladeSearch:
     def filter_dict_by_string(input_dict: dict, input_string: str) -> list:
         """Helper to filter out tokens that appear in the input string"""
         return [key for key in input_dict if key.lower() not in input_string.lower()]
+

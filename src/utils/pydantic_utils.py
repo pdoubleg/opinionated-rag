@@ -489,7 +489,7 @@ def dataframe_to_document_model(
     additional_fields = {
         col: (
             Optional[numpy_to_python_type(type(first_non_null(df[col])))],
-            None,  # Optional[numpy_to_python_type(type(first_non_null(df[col])))],
+            None,
         )
         for col in df.columns
         if col not in metadata and col != content
