@@ -10,7 +10,7 @@ import openai
 import enum
 from typing import List
 import numpy as np
-
+from textwrap import fill
 
 from src.agent.tools.semantic_search import SemanticSearch
 from src.agent.tools.splade_search import SparseEmbeddingsSplade
@@ -163,9 +163,10 @@ class SubQuestion(BaseModel):
 
         Returns:
             pd.DataFrame: A DataFrame containing the results from both searches.
-        """
-        print(f"\n\nThought: {self.chain_of_thought}\nSearch topic: {self.sub_question_topic}")
-        print(f"Running vector (OpenAI) search on: {self.sub_question_query}")
+        """       
+        wrapped_thought = fill(self.chain_of_thought, width=100)
+        logger.info(f"\n\nThought: {wrapped_thought}\nSearch topic: {self.sub_question_topic}")
+        logger.info(f"Running vector (OpenAI) search on: {self.sub_question_query}")
         vector_results = semantic_search.query_similar_documents(self.sub_question_query, top_n=10)
         
         # Initialize an empty DataFrame for SPLADE results
@@ -174,7 +175,7 @@ class SubQuestion(BaseModel):
         # Check if sub_question_keywords is not None and has valid keywords
         if self.sub_question_keywords and any(self.sub_question_keywords):
             keywords = ', '.join(self.sub_question_keywords)
-            print(f"Running keyword (SPLADE) search on: {keywords}")
+            logger.info(f"Running keyword (SPLADE) search on: {keywords}")
             splade_results = splade_search.query_similar_documents(keywords, top_n=10)
         
         # Concatenate results only if splade_results is not empty
@@ -183,9 +184,9 @@ class SubQuestion(BaseModel):
         else:
             results_df = vector_results
         
-        print(f"Returning {len(vector_results)} records from vector search and {len(splade_results)} from keywords")
-        print(f"Results contain {results_df['index'].nunique()} unique IDs")
-        print("-"*75)
+        logger.info(f"Returning {len(vector_results)} records from vector search and {len(splade_results)} from keywords")
+        logger.info(f"Results contain {results_df['index'].nunique()} unique IDs")
+        logger.info("-"*75)
         return vector_results, splade_results
 
 
@@ -246,7 +247,7 @@ def segment(user_query: str, n: str = '2 to 4') -> MultiSearch:
                 {"role": "user", 
                  "content": f"Here is the user question: {user_query}"},
         ],
-        max_tokens=2000,
+        # max_tokens=2000,
     )
     return completion
 

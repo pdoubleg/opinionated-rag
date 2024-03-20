@@ -166,7 +166,11 @@ async def aget_fact_patterns_df(df: pd.DataFrame, text_col: str, id_col: str) ->
 
 # Create context for LLM prompt
 def create_context(
-    df: pd.DataFrame, query: str, context_token_limit: int = 3000
+    df: pd.DataFrame,
+    query: str, 
+    text_column: str = 'body',
+    url_column: str = 'full_link',
+    context_token_limit: int = 3000
 ) -> str:
 
     df.reset_index(drop=True, inplace=True)
@@ -179,9 +183,9 @@ def create_context(
             "["
             + str(count)
             + "] "
-            + row["summary"]
+            + row[text_column]
             + "\nURL: "
-            + row["full_link"]
+            + row[url_column]
         )
         text_tokens = count_tokens(text)
         if total_tokens + text_tokens > context_token_limit:

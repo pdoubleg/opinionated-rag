@@ -6,10 +6,9 @@ from typing import Any
 from typing import Generic
 from typing import TypeVar
 
-from src.utils.logging import setup_logger, setup_colored_logging
+from src.utils.logging import setup_colored_logging
 
-logger = setup_logger()
-setup_colored_logging()
+logger = setup_colored_logging(__name__)
 
 R = TypeVar("R")
 

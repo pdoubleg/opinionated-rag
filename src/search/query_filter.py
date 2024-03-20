@@ -180,7 +180,7 @@ def generate_query_plan(
             },
             {
                 "role": "user",
-                "content": f"Here is the user query:\n\nQUERY:{query}",
+                "content": f"Here is the QUERY: {query}",
             },
         ],
     )
