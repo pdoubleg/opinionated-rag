@@ -1,8 +1,10 @@
 import hashlib
 import uuid
 from enum import Enum
+from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Union
 import pandas as pd
+import time
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -10,6 +12,20 @@ Number = Union[int, float]
 Embedding = List[Number]
 Embeddings = List[Embedding]
 EmbeddingFunction = Callable[[List[str]], Embeddings]
+
+
+@dataclass
+class TurboTool:
+    name: str
+    config: dict
+    function: Callable
+    
+@dataclass
+class Chat:
+    from_name: str
+    to_name: str
+    message: str
+    created: int = field(default_factory=time.time)
 
 
 class SEARCH_TYPES:

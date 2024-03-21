@@ -1,3 +1,2 @@
 .env
-src/parsing/__pycache__/para_sentence_split.cpython-310.pyc
 .streamlit/secrets.toml

@@ -3,7 +3,7 @@ name = "legal-tech-project"
 version = "0.1.0"
 description = ""
 authors = ["Your Name <you@example.com>"]
-package-mode = false
+packages = [{include = "src"}]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.12"
@@ -87,6 +87,10 @@ tensorflow-io-gcs-filesystem = [
 ]
 tensorflow = "^2.16.1"
 readability-lxml = "^0.8.1"
+faster-whisper = "^1.0.1"
+psycopg2 = "^2.9.9"
+ipywidgets = "^8.1.2"
+marvin = "^2.3.0"
 
 [tool.pytest.ini_options]
 addopts = "-ra"
@@ -105,3 +109,7 @@ notebook = "^7.1.0"
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
+
+
+[tool.poetry.scripts]
+start = "turbo_main:main"
