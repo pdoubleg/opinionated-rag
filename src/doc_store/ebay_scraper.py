@@ -1,4 +1,6 @@
+from random import randint
 import re
+from time import sleep
 from typing import List, Optional, Union
 import urllib.parse
 import urllib.request
@@ -6,6 +8,11 @@ from bs4 import BeautifulSoup
 import requests
 
 from pydantic import BaseModel, HttpUrl, field_validator, Field
+from tenacity import retry, stop_after_attempt, wait_fixed
+
+DEFAULT_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36 Edge/18.19582"
+}
 
 countryDict = {
     "au": ".com.au",
@@ -177,47 +184,58 @@ def Items(query, country="us", condition="all", type="all"):
     return data
 
 
-def AverageSalePrice(query, country="us", condition="all"):
-    if country not in countryDict:
-        raise Exception(
-            "Country not supported, please use one of the following: "
-            + ", ".join(countryDict.keys())
-        )
+def AverageSalePrice(query, country="us", condition="all", retries: int = 10):
+    for attempt in range(retries):
+        if country not in countryDict:
+            raise Exception(
+                "Country not supported, please use one of the following: "
+                + ", ".join(countryDict.keys())
+            )
 
-    if condition not in conditionDict:
-        raise Exception(
-            "Condition not supported, please use one of the following: "
-            + ", ".join(conditionDict.keys())
-        )
+        if condition not in conditionDict:
+            raise Exception(
+                "Condition not supported, please use one of the following: "
+                + ", ".join(conditionDict.keys())
+            )
+        try:
+            soup = __GetHTML(query, country, condition, type="all", alreadySold=True)
+        except Exception as e:
+            print(f"An error occurred: {e}")
+        
+        data = __ParsePrices(soup)
 
-    soup = __GetHTML(query, country, condition, type="all", alreadySold=True)
-    data = __ParsePrices(soup)
+        avgPrice = round(__Average(data["price-list"]), 2)
+        avgShipping = round(__Average(data["shipping-list"]), 2)
+        count = len(data["price-list"])
+        
+        # Calculate min and max values
+        minPrice = min(data["price-list"], default=0)
+        maxPrice = max(data["price-list"], default=0)
+        minShipping = min(data["shipping-list"], default=0)
+        maxShipping = max(data["shipping-list"], default=0)
 
-    avgPrice = round(__Average(data["price-list"]), 2)
-    avgShipping = round(__Average(data["shipping-list"]), 2)
-    count = len(data["price-list"])
-    
-    # Calculate min and max values
-    minPrice = min(data["price-list"], default=0)
-    maxPrice = max(data["price-list"], default=0)
-    minShipping = min(data["shipping-list"], default=0)
-    maxShipping = max(data["shipping-list"], default=0)
-
-    results_dict = {
-        "item": query,
-        "price": avgPrice,
-        "shipping": avgShipping,
-        "total": round(avgPrice + avgShipping, 2),
-        "count": count,
-        "min_price": minPrice,
-        "max_price": maxPrice,
-        "min_shipping": minShipping,
-        "max_shipping": maxShipping
-    }
-    return AvgSalePrice(**results_dict)
+        results_dict = {
+            "item": query,
+            "price": avgPrice,
+            "shipping": avgShipping,
+            "total": round(avgPrice + avgShipping, 2),
+            "count": count,
+            "min_price": minPrice,
+            "max_price": maxPrice,
+            "min_shipping": minShipping,
+            "max_shipping": maxShipping
+        }
+        # return AvgSalePrice(**results_dict)
+        search_results = AvgSalePrice(**results_dict)
+        if avgPrice > 0:
+            return search_results[1:-1]
+        else:
+            sleep(randint(0.5, 1.5))
+    return str("Sorry, but this search tool is currently down. Please try again in a bit.")
 
 
-def __GetHTML(query, country, condition="", type="all", alreadySold=True):
+@retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
+def __GetHTML(query, country, condition="all", type="all", alreadySold=True):
     alreadySoldString = "&LH_Complete=1&LH_Sold=1" if alreadySold else ""
 
     # Build the URL
@@ -231,8 +249,9 @@ def __GetHTML(query, country, condition="", type="all", alreadySold=True):
     )
 
     # Get the web page HTML
-    request = urllib.request.urlopen(url)
-    soup = BeautifulSoup(request.read(), "html.parser")
+    response = requests.get(url, headers=DEFAULT_HEADERS)
+    response.raise_for_status()  # Raises stored HTTPError, if one occurred
+    soup = BeautifulSoup(response.content, "html.parser")
 
     return soup
 
@@ -386,102 +405,109 @@ def __StDevParse(numberList):
     return numberList
 
 
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36 Edge/18.19582"
-}
+# headers = {
+#     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36 Edge/18.19582"
+# }
 
-
-def eBayWebSearch(search_item: str) -> List['eBayProduct']:
-    html = requests.get(
-        f"https://www.ebay.com/sch/i.html?_nkw={search_item}", headers=headers
-    ).text
-    soup = BeautifulSoup(html, "lxml")
-
-    data = []
-
-    for item in soup.select(".s-item__wrapper.clearfix"):
-        title = item.select_one(".s-item__title").text
-        link = item.select_one(".s-item__link")["href"]
-        
-        item_id = link.split('?')[0].split('/')[-1]
-        item_descr_url = 'https://vi.vipr.ebaydesc.com/ws/eBayISAPI.dll?item={item_id}'
-        item_descr_soup = BeautifulSoup(requests.get(item_descr_url.format(item_id=item_id)).content, 'html.parser')
-        description = item_descr_soup.get_text(strip=True, separator='\n')
-
-        image = item.find("img")
-        image_url = image["src"]
-
-        try:
-            condition = item.select_one(".SECONDARY_INFO").text
-        except:
-            condition = None
-
-        try:
-            shipping = item.select_one(".s-item__logisticsCost").text
-        except:
-            shipping = None
-
-        try:
-            location = item.select_one(".s-item__itemLocation").text
-        except:
-            location = None
-
-        try:
-            watchers_sold = item.select_one(".NEGATIVE").text
-        except:
-            watchers_sold = None
-
-        if item.select_one(".s-item__etrs-badge-seller") is not None:
-            top_rated = True
-        else:
-            top_rated = False
-
-        try:
-            bid_count = item.select_one(".s-item__bidCount").text
-        except:
-            bid_count = None
-
-        try:
-            bid_time_left = item.select_one(".s-item__time-left").text
-        except:
-            bid_time_left = None
-
-        try:
-            reviews = item.select_one(".s-item__reviews-count span").text.split(" ")[0]
-        except:
-            reviews = None
-
-        try:
-            extension_buy_now = item.select_one(
-                ".s-item__purchase-options-with-icon"
-            ).text
-        except:
-            extension_buy_now = None
-
-        try:
-            price = item.select_one(".s-item__price").text
-        except:
-            price = None
-
-        data.append(
-            {"ebay_id": item_id,
-            "item": {
-                "title": title,
-                "link": link,
-                "price": price,
-                "image_url": image_url,
-                "description": description,
-                },
-                "condition": condition,
-                "top_rated": top_rated,
-                "reviews": reviews,
-                "watchers_or_sold": watchers_sold,
-                "buy_now_extension": extension_buy_now,
-                "delivery": {"shipping": shipping, "location": location},
-                "bids": {"count": bid_count, "time_left": bid_time_left},
-            }
+@retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
+def eBayWebSearch(search_item: str, retries: int = 10) -> List['eBayProduct']:
+    for attempt in range(retries):
+        response = requests.get(
+            f"https://www.ebay.com/sch/i.html?_nkw={search_item}", headers=DEFAULT_HEADERS
         )
-    results = data[1:-1]
-    return [eBayProduct(**r) for r in results]
+        response.raise_for_status()  # Raises stored HTTPError, if one occurred
+        soup = BeautifulSoup(response.text, "lxml")
+
+        data = []
+
+        for item in soup.select(".s-item__wrapper.clearfix"):
+            title = item.select_one(".s-item__title").text
+            link = item.select_one(".s-item__link")["href"]
+            
+            item_id = link.split('?')[0].split('/')[-1]
+            item_descr_url = 'https://vi.vipr.ebaydesc.com/ws/eBayISAPI.dll?item={item_id}'
+            item_descr_soup = BeautifulSoup(requests.get(item_descr_url.format(item_id=item_id)).content, 'html.parser')
+            description = item_descr_soup.get_text(strip=True, separator='\n')
+
+            image = item.find("img")
+            image_url = image["src"]
+
+            try:
+                condition = item.select_one(".SECONDARY_INFO").text
+            except:
+                condition = None
+
+            try:
+                shipping = item.select_one(".s-item__logisticsCost").text
+            except:
+                shipping = None
+
+            try:
+                location = item.select_one(".s-item__itemLocation").text
+            except:
+                location = None
+
+            try:
+                watchers_sold = item.select_one(".NEGATIVE").text
+            except:
+                watchers_sold = None
+
+            if item.select_one(".s-item__etrs-badge-seller") is not None:
+                top_rated = True
+            else:
+                top_rated = False
+
+            try:
+                bid_count = item.select_one(".s-item__bidCount").text
+            except:
+                bid_count = None
+
+            try:
+                bid_time_left = item.select_one(".s-item__time-left").text
+            except:
+                bid_time_left = None
+
+            try:
+                reviews = item.select_one(".s-item__reviews-count span").text.split(" ")[0]
+            except:
+                reviews = None
+
+            try:
+                extension_buy_now = item.select_one(
+                    ".s-item__purchase-options-with-icon"
+                ).text
+            except:
+                extension_buy_now = None
+
+            try:
+                price = item.select_one(".s-item__price").text
+            except:
+                price = None
+
+            data.append(
+                {"ebay_id": item_id,
+                "item": {
+                    "title": title,
+                    "link": link,
+                    "price": price,
+                    "image_url": image_url,
+                    "description": description,
+                    },
+                    "condition": condition,
+                    "top_rated": top_rated,
+                    "reviews": reviews,
+                    "watchers_or_sold": watchers_sold,
+                    "buy_now_extension": extension_buy_now,
+                    "delivery": {"shipping": shipping, "location": location},
+                    "bids": {"count": bid_count, "time_left": bid_time_left},
+                }
+            )
+        search_results = [eBayProduct(**r) for r in data]
+        if search_results:
+            return search_results[1:-1]
+        else:
+            sleep(randint(0.5, 1.5))
+    return str("Sorry, but this search tool is currently down. Please try again in a bit.")
+
 
 

@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 from datetime import datetime
+import openai
 import pandas as pd
 from contextlib import contextmanager
 from typing import Any, Iterator, Optional
@@ -16,6 +17,61 @@ from md2pdf.core import md2pdf
 
 from src.utils.configuration import settings
 from src.utils.constants import Colors
+
+
+from datetime import datetime
+import functools
+import inspect
+import tempfile
+import markdown
+
+@functools.lru_cache(maxsize=1000)
+def download_temp_file(file_id: str, suffix: str = None):
+    """
+    Downloads a file from OpenAI's servers and saves it to a temporary file.
+
+    Args:
+        file_id: The ID of the file to be downloaded.
+        suffix: The file extension to be used for the temporary file.
+
+    Returns:
+        The file path of the downloaded temporary file.
+    """
+
+    client = openai.OpenAI()
+    response = client.files.content(file_id)
+
+    # Create a temporary file with a context manager to ensure it's cleaned up
+    # properly
+    temp_file = tempfile.NamedTemporaryFile(delete=False, mode="wb", suffix=suffix)
+    temp_file.write(response.content)
+
+    return temp_file.name
+
+
+def format_message(message):
+    timestamp = (
+        datetime.fromtimestamp(message.created_at).strftime("%I:%M:%S %p").lstrip("0")
+    )
+    content = []
+    for item in message.content:
+        if item.type == "text":
+            content.append(item.text.value + "\n\n")
+        elif item.type == "image_file":
+            # Use the download_temp_file function to download the file and get
+            # the local path
+            local_file_path = download_temp_file(item.image_file.file_id, suffix=".png")
+            content.append(
+                f"*View attached image: [{local_file_path}]({local_file_path})*"
+            )
+
+    for file_id in message.file_ids:
+        content.append(f"Attached file: {file_id}\n")
+
+    out_str = f"**{str(message.role.title())}**\n\n"
+    out_str += inspect.cleandoc("\n\n".join(content))
+
+    return out_str
 
 
 async def write_to_file(filename: str, text: str) -> None:
