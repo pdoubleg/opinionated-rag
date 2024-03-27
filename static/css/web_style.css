@@ -63,9 +63,9 @@
 }
 
 @page :first {
-  /* background: url(./cover.png) no-repeat center; */
+  /* background: url(./cover.png) no-repeat center;
   background: url("http://localhost:8080/cover.png");
-  background-size: cover;
+  background-size: cover; */
   margin: 0;
 }
 
@@ -90,21 +90,21 @@ html body h4 {
 }
 
 html body h1 {
-  color: #ffffff;
-  font-size: 38pt;
-  padding: 0;
-  margin: 0;
-  text-transform: uppercase;
+  background-color: #0616aa; /* Dark blue background */
+  color: #ffffff; /* White text */
+  padding: 10px;
+  text-align: center;
+  border-radius: 10px;
 }
 
-html body h2 {
+/* html body h2 {
   string-set: heading content();
   color: #1fe494;
   font-size: 24pt;
   padding: 0;
   margin: 0;
   border-bottom: solid 2px #cbd5e0;
-}
+} */
 
 
 html body article#cover {

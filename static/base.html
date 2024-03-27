@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css">
+    <style>
+      .header, .content, .image-container {
+        font-family: 'Inter var', sans-serif;
+      }
+      .header {
+        background-color: #2D3748;
+        color: #eff2f5;
+        padding: 12px;
+        text-align: center;
+        border-radius: 10px;
+        font-weight: bold;
+        font-size: large;
+      }
+      .content {
+        padding: 20px;
+        font-weight: normal;
+        font-size: medium;
+      }
+      .image-container {
+        text-align: center;
+        margin: 20px 0;
+      }
+      .image-container img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 10px;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-50 font-sans">
+    <div class="header">
+      <h1 class="text-3xl font-bold">πi | Property Image Inspection</h1>
+    </div>
+
+    <!-- content section -->
+    <div class="image-container">
+      <img src="{{ image_url }}" alt="Dynamic Image" class="mx-auto rounded-lg shadow-lg" style="max-width: 100%; height: auto;">
+    </div>
+    <div class="content">{{ai_generated_content}}</div>
+  </body>
+</html>

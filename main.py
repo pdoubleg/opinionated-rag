@@ -292,16 +292,6 @@ if api_key_:
 
         return "\n\n".join(formatted_items)
 
-    # def synthesize_report(topic, search_contents, content_slice = 3000):
-    #     inputData = ''.join([
-    #         f'--START ITEM--\nURL: {item.url}\nCONTENT: {item.extract[:content_slice]}\n--END ITEM--\n'
-    #         for item in search_contents
-    #     ])
-    #     return get_llm_response(
-    #         system='You are a helpful internet research assistant specializing in empowering buyers. You help sift through raw search results to find the most relevant and interesting findings for user topic of interest. ',
-    #         user='Input Data:\n' + inputData + f'Write a two paragraph research report about **{topic}** based on the provided search results. One paragraph summarizing the Input Data, and another focusing on the main Research Topic. Include as many sources as possible. Provide citations in the text using footnote notation ([#]). First provide the report, followed by a markdown table of all the URLs used, in the format [#] .',
-    #         model='gpt-4' # want a better report? use gpt-4
-    #     ), inputData
 
     def synthesize_report(topic: str, internet_content: str) -> str:
         full_report = ""

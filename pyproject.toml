@@ -91,7 +91,12 @@ faster-whisper = "^1.0.1"
 psycopg2 = "^2.9.9"
 ipywidgets = "^8.1.2"
 marvin = "^2.3.0"
-ansi2html = "^1.9.1"
+httpx = {extras = ["http2"], version = "^0.27.0"}
+nested-lookup = "^0.2.25"
+parsel = "^1.9.0"
+open-clip-torch = "^2.24.0"
+imgkit = "^1.2.3"
+pymdown-extensions = "^10.7.1"
 
 [tool.pytest.ini_options]
 addopts = "-ra"
@@ -109,6 +114,11 @@ notebook = "^7.1.0"
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+
+
+
+
 
 
 

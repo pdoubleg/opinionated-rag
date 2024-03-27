@@ -28,8 +28,7 @@ body, html {
 .cover-image {
     width: 75%; 
     max-width: 80%; 
-    max-height: 100vh; 
-    height: auto; 
+    height: auto;
 }
 
 

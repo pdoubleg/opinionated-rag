@@ -68,8 +68,9 @@ def format_message(message):
     for file_id in message.file_ids:
         content.append(f"Attached file: {file_id}\n")
 
-    out_str = f"**{str(message.role.title())}**\n\n"
-    out_str += inspect.cleandoc("\n\n".join(content))
+    # out_str = f"**{str(message.role.title())}**\n\n"
+    # out_str = str(timestamp)
+    out_str = inspect.cleandoc("\n\n".join(content))
 
     return out_str
 
