@@ -28,6 +28,11 @@ from src.doc_store.utils import (
 from src.schema.docket import Docket
 from src.types import SEARCH_TYPES
 
+# Data models in this module are based on the below.
+# https://github.com/freelawproject/courtlistener/blob/main/cl/search/models.py#L3264
+# The main exception is `Case`, which is designed to loop through nested schemas and fetch additional data.
+# For example, Court Listener keyword query returns a docket id and url, but no details on the docket itself,
+# so we take the id and use it to build a request to get the actual data.
 
 COURTLISTENER_BASE_URL = "https://www.courtlistener.com/api/rest/v3/"
 COURTLISTENER_WEB_URL = "https://www.courtlistener.com"
@@ -37,6 +42,7 @@ load_dotenv()
 
 
 class Caselist(object):
+    """A container to hold a list of Case objects."""
     def __init__(self, list_of_cases):
         self.cases = list_of_cases
 

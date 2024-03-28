@@ -3,8 +3,10 @@
 from __future__ import annotations
 import json
 import os
+import csv
 from dotenv import load_dotenv
 from typing import Any, Dict, List, Optional, Union
+import pandas as pd
 
 import requests
 
@@ -34,6 +36,20 @@ class CAPClient(LegalDataSource):
             "set the CAPClient's 'api_key' attribute to "
             "your API key for the Case Access Project. See https://api.case.law/"
         )
+        
+    def _build_uri(self, uri_base, params):
+        """
+        Internal method for constructing search query URIs with multiple parameters.
+        """
+        if not params:
+            return uri_base
+        else:
+            uri_extension = "?"
+            for param in params:
+                uri_extension = uri_extension + param + "&"
+            uri_extension = uri_extension[:-1]  # clip off the final & 
+            uri = uri_base + uri_extension
+            return uri
 
     def fetch_case(
         self,
@@ -380,6 +396,139 @@ class CAPClient(LegalDataSource):
         ) -> str:
         decision = self.read_id(case_id, full_case=True, body_format="html")
         return str(decision)
+    
+    def search_cases(
+        self, 
+        search_term: str = "", 
+        jurisdiction: str = "", 
+        court: str = "", 
+        decision_date_min: str = "", 
+        decision_date_max: str = "", 
+        full_case: bool = False, 
+        uri_only: bool = False
+    ) -> Union[Dict[str, Any], str]:
+        """
+        Full case search endpoint; retrieve list of cases matching specified parameters.
+        All parameters optional (and defined as empty by default).
+
+        Args:
+            search_term (str): Search by given word; full text search query.
+            jurisdiction (str): Search by jurisdiction; takes a jurisdiction slug.
+            court (str): Search by court; takes a court slug.
+            decision_date_min (str): Search by earliest date; YYYY-MM-DD format.
+            decision_date_max (str): Search by maximum date; YYYY-MM-DD format.
+            full_case (bool): When set to true, full text and body will be loaded for all cases.
+            uri_only (bool): When set to True, returns only the URI, not the results of the URI request.
+
+        Returns:
+            Union[Dict[str, Any], str]: Paginated and ordered JSON list with case info JSON for each case
+            or the URI if uri_only is True.
+        """
+        url_base = self.endpoint
+        url_queries = []
+
+        if search_term:
+            url_queries.append("search=%s&full_case=true" % search_term)
+
+        if jurisdiction:
+            url_queries.append("jurisdiction=%s" % jurisdiction)
+
+        if court:
+            url_queries.append("court=%s" % court)
+
+        if decision_date_min:
+            url_queries.append("decision_date_min=%s" % decision_date_min)
+
+        if decision_date_max:
+            url_queries.append("decision_date_max=%s" % decision_date_max)
+
+        if full_case:
+            url_queries.append("full_case=true")
+
+        uri = self._build_uri(url_base, url_queries)
+
+        if uri_only:
+            return uri
+
+        response = requests.get(uri, headers=self.get_api_headers(full_case))
+        if response.status_code == 200:
+            return response.json()
+        else:
+            raise Exception(f"API request failed with status code {response.status_code}")
+        
+    
+    def download_to_csv(self, search_results, filename):
+        """
+        Input a JSON list of search results (full_text MUST be set to true) and downloads the search results
+        as a .csv file. 
+        
+        :param search_results: JSON search result retrieved using the 'search_cases' method that you wish to
+                                download. Search results CAN be paginated; function will iterate through all
+                                search result pages.
+        :type search_results: JSON
+        :param filename: desired filename for downloaded data (make sure to include '.csv' extension)
+        :type filename: str
+        :param multi: sets whether or not
+        
+        :return: null
+        """
+
+        current_page = search_results
+
+        with open(filename, "w", encoding='utf-8') as csvfile:
+            fieldnames = ["id", "name", "name_abbreviation", "decision_date", "court_id", "court_name", "court_slug",
+                          "judges", "attorneys", "citations", "url", "head", "body"]
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+            while True:
+                for case in current_page["results"]:
+                    try:
+                        judges = str(case["casebody"]["data"]["judges"])
+                    except:
+                        judges = "Missing"
+                    try:
+                        attorneys = str(case["casebody"]["data"]["attorneys"])
+                    except:
+                        attorneys = "Missing"
+                    try:
+                        head = case["casebody"]["data"]["head_matter"]
+                    except:
+                        head = "Missing"
+                    try:
+                        body = case["casebody"]["data"]["opinions"][0]["text"]
+                    except:
+                        body = "Missing"
+                    case_data = {
+                        "id": case["id"],
+                        "name": case["name"],
+                        "name_abbreviation": case["name_abbreviation"],
+                        "decision_date": case["decision_date"],
+                        "court_id": case["court"]["id"],
+                        "court_name": case["court"]["name"],
+                        "court_slug": case["court"]["slug"],
+                        "judges": judges,
+                        "attorneys": attorneys,
+                        "citations": str(case["citations"]),
+                        "url": case["url"],
+                        "head": head,
+                        "body": body,
+                    }
+                    writer.writerow(case_data)
+
+                try:
+                    next_result = requests.get(current_page["next"], headers=self.get_api_headers())
+                    next_result = self._request(current_page["next"])
+                    current_page = next_result.json()
+
+                except:
+                    break
+
+        print("Downloaded " + str(search_results["count"]) + " court cases to file " + filename + ".")
+        
+    def read_in_csv(self, file_path: str) -> pd.DataFrame:
+        fieldnames = ["id", "name", "name_abbreviation", "decision_date", "court_id", "court_name", "court_slug",
+            "judges", "attorneys", "citations", "url", "head", "body"]
+        return pd.read_csv(file_path, names=fieldnames)
     
     
     

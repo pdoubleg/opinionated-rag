@@ -111,8 +111,8 @@ def get_citation_context(
     words_after: int | None = 1000,
 ) -> str:
     """
-    Simplified approach to find a citation in text and return the context around it, with the start and end positions
-    adjusted to complete sentences, while trying to keep the original functionality.
+    Finds a citation in text and return the context around it, with the start and end positions
+    adjusted to complete sentences.
 
     Args:
         text (str): The text to search.

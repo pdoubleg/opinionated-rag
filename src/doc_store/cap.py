@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 import csv
+import pandas as pd
 import requests
 import datetime
 
@@ -297,13 +298,29 @@ class Cap(object):
 
         current_page = search_results
 
-        with open(filename, "w") as csvfile:
+        with open(filename, "w", encoding='utf-8') as csvfile:
             fieldnames = ["id", "name", "name_abbreviation", "decision_date", "court_id", "court_name", "court_slug",
                           "judges", "attorneys", "citations", "url", "head", "body"]
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
             while True:
                 for case in current_page["results"]:
+                    try:
+                        judges = str(case["casebody"]["data"]["judges"])
+                    except:
+                        judges = "Missing"
+                    try:
+                        attorneys = str(case["casebody"]["data"]["attorneys"])
+                    except:
+                        attorneys = "Missing"
+                    try:
+                        head = case["casebody"]["data"]["head_matter"]
+                    except:
+                        head = "Missing"
+                    try:
+                        body = case["casebody"]["data"]["opinions"][0]["text"]
+                    except:
+                        body = "Missing"
                     case_data = {
                         "id": case["id"],
                         "name": case["name"],
@@ -312,12 +329,12 @@ class Cap(object):
                         "court_id": case["court"]["id"],
                         "court_name": case["court"]["name"],
                         "court_slug": case["court"]["slug"],
-                        "judges": str(case["casebody"]["data"]["judges"]),
-                        "attorneys": str(case["casebody"]["data"]["attorneys"]),
+                        "judges": judges,
+                        "attorneys": attorneys,
                         "citations": str(case["citations"]),
                         "url": case["url"],
-                        "head": case["casebody"]["data"]["head_matter"],
-                        "body": case["casebody"]["data"]["opinions"][0]["text"]
+                        "head": head,
+                        "body": body,
                     }
                     writer.writerow(case_data)
 
@@ -398,3 +415,8 @@ class Cap(object):
                         break
 
         print("Downloaded " + str(downloaded_count) + " court cases to file " + filename + ".")
+        
+    def read_in_csv(self, file_path: str) -> pd.DataFrame:
+        fieldnames = ["id", "name", "name_abbreviation", "decision_date", "court_id", "court_name", "court_slug",
+                "judges", "attorneys", "citations", "url", "head", "body"]
+        return pd.read_csv(file_path, names=fieldnames)

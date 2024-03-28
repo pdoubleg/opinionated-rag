@@ -27,6 +27,7 @@ from .citations import CAPCitation
 class ReporterVolume(BaseModel):
     """
     Represents a collection of judicial decisions published in a single volume.
+    In Court Listener (some of) this data is in `Citation`.
 
     Attributes:
         id (int): The unique identifier for this volume, corresponding to the volume number in Court Listener's Citation.volume.
@@ -43,7 +44,7 @@ class ReporterVolume(BaseModel):
         ...,
         description="The URL pointing to this volume's information in the Case Access Project API, derived from OpinionCluster.absolute_url and a base URL.",
     )
-    full_name: str
+    full_name: str = ""
 
     @field_serializer("url")
     def serialize_reporter_url(self, url: HttpUrl, _info):
@@ -53,6 +54,7 @@ class ReporterVolume(BaseModel):
 class Court(BaseModel):
     """
     Represents a court entity that issues legal decisions.
+    In Court Listener (some of) this data is in `Docket`.
 
     Attributes:
         id (Optional[int]): The unique identifier for this court. Defaults to None.
@@ -75,6 +77,9 @@ class Court(BaseModel):
 
 class Jurisdiction(BaseModel):
     """
+    Jurisdiction data model based on the CAP api. 
+    This data does not exist in Court Listener, and is limited in CAP.
+    
     Represents a jurisdiction, which is an authority that governs or oversees a legal system.
 
     Attributes:
@@ -103,6 +108,9 @@ class Jurisdiction(BaseModel):
 
 class Opinion(BaseModel):
     """
+    Opinion data model based on the CAP api.
+    Court Listener also has an `Opinion` model that contains this data and a lot more.
+    
     A document that resolves legal issues in a case and posits legal holdings.
 
     Usually, an opinion must have ``type="majority"`` to create holdings binding on any courts.
@@ -121,7 +129,7 @@ class Opinion(BaseModel):
 
     type: str = "majority"
     author: Optional[str] = None
-    text: str
+    text: str = ""
     is_html: Optional[bool] = False
 
     def __repr__(self) -> str:
@@ -140,11 +148,11 @@ class Opinion(BaseModel):
 
 
 class CaseData(BaseModel):
-    """The content of a Decision, including Opinions."""
+    """
+    The content of a Decision, most notably Opinions.
 
-    head_matter: Optional[str] = Field(
-        None, description="Court Listener is Cluster.headmatter"
-    )
+    """
+    head_matter: Optional[str] = None
     opinions: List[Opinion] = []
     parties: Optional[str | List[str]] = []
     judges: Optional[str | List[str]] = []
@@ -153,15 +161,16 @@ class CaseData(BaseModel):
 class CaseBody(BaseModel):
     """Data about an Opinion in the form used by the Caselaw Access Project API."""
 
-    data: Union[str, CaseData]
+    data: Optional[str | CaseData] = None
     status: Optional[str] = Field(
-        None, description="Court Listener is OpinionCluster.precedential_status"
+        None, 
+        description="In Court Listener this is OpinionCluster.precedential_status"
     )
 
 
 class Decision(BaseModel):
     r"""
-    A court decision to resolve a step in litigation.
+    A CAP data model that also (mostly) works with the Court Listener API.
 
     This class uses the model of a judicial decision from the Caselaw Access Project API. \
         It is designed to handle records that may contain multiple `Opinion` instances. \
@@ -186,11 +195,11 @@ class Decision(BaseModel):
     citations: Optional[Sequence[CAPCitation]] = None
     parties: Optional[List[str]] = []
     attorneys: Optional[Union[str, List[str]]] = None
-    first_page: Optional[int] = None
-    last_page: Optional[int] = None
-    court: Optional[Court] = None
+    first_page: Optional[int | str] = None
+    last_page: Optional[int | str] = None
+    court: Optional[Court | str] = None
     casebody: Optional[CaseBody] = None
-    jurisdiction: Optional[Jurisdiction] = None
+    jurisdiction: Optional[Jurisdiction | str] = None
     cites_to: Optional[Union[str, List[str], List[CAPCitation], Any]] = None
     id: Optional[int] = None
     last_updated: Optional[str] = None
@@ -353,7 +362,7 @@ class Decision(BaseModel):
         )
         self.context_citation = citation if isinstance(citation, str) else citation.cite
 
-    def set_citation_context(
+    def set_citations_contexts(
         self,
         citations: List[Union[str, CAPCitation, CaseCitation]],
         words_before: int = 500,
