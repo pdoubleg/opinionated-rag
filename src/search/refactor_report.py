@@ -66,12 +66,10 @@ class ResearchPastQuestions(BaseModel):
         description="Pre-filters for top-k vector search based on column value pairs.",
     )
     include_sources: Optional[bool] = Field(
-        True, 
-        description="Whether model output should include source text."
+        True, description="Whether model output should include source text."
     )
     must_have_opinion: Optional[bool] = Field(
-        False, 
-        description="Whether to limit search to cases with available opinions."
+        False, description="Whether to limit search to cases with available opinions."
     )
     linkable_citations: Optional[bool] = Field(
         True,
@@ -89,20 +87,37 @@ class ResearchPastQuestions(BaseModel):
         rerank: bool = True,
         model_name: str = DEFAULT_MODEL_NAME,
         context_token_limit: int = TOKEN_LIMIT,
+        use_fact_patterns: bool = True,
     ) -> str:
         df, opinion_df = self.prepare_dataframes()
 
         search_engine = SemanticSearch(df)
-        query_clean = get_llm_fact_pattern_summary(user_query)
+
+        if use_fact_patterns:
+            query_clean = get_llm_fact_pattern_summary(user_query)
+        else:
+            query_clean = user_query
+
         top_n_res_df = await self.perform_search(query_clean, search_engine)
 
-        if rerank:
-            top_n_res_df = self.rerank_results(query_clean, top_n_res_df)
+        if use_fact_patterns:
+            print("Generating fact pattern summaries...")
+            top_n_res_df = await aget_fact_patterns_df(
+                top_n_res_df, TEXT_COLUMN_NAME, "id"
+            )
 
+        if rerank:
+            print("ReRanking with ColBERTv2...")
+            # Determine the column to use for reranking based on whether fact patterns were used
+            rerank_column = (
+                "fact_pattern_summary" if use_fact_patterns else TEXT_COLUMN_NAME
+            )
+            top_n_res_df = self.rerank_results(query_clean, top_n_res_df, rerank_column)
+
+        print("Generating final response...")
         formatted_input = create_formatted_input(
             top_n_res_df, user_query, context_token_limit=context_token_limit
         )
-        print("Generating final response...")
         response_model = get_final_answer(formatted_input, model_name=model_name)
 
         result = self.format_result(
@@ -123,7 +138,15 @@ class ResearchPastQuestions(BaseModel):
     async def perform_search(
         self, query_clean: Any, search_engine: SemanticSearch
     ) -> pd.DataFrame:
-        """Performs the semantic search and returns the top N results dataframe."""
+        """Performs the semantic search and returns the top N results dataframe.
+
+        Args:
+            query_clean (Any): The cleaned query.
+            search_engine (SemanticSearch): The search engine instance.
+
+        Returns:
+            pd.DataFrame: The dataframe containing the top N search results.
+        """
         print("Performing vector search...")
         top_n_res_df = await search_engine.query_similar_documents(
             query_clean.summary,
@@ -132,12 +155,23 @@ class ResearchPastQuestions(BaseModel):
             use_cosine_similarity=True,
             similarity_threshold=0.97,
         )
-        return await aget_fact_patterns_df(top_n_res_df, TEXT_COLUMN_NAME, "id")
+        return top_n_res_df
 
-    def rerank_results(self, query_clean: Any, df: pd.DataFrame) -> pd.DataFrame:
-        """Reranks the search results and returns the updated dataframe."""
-        print("Reranking with ColBERTv2...")
-        reranker = ColbertReranker(column="summary")
+    def rerank_results(
+        self, query_clean: Any, df: pd.DataFrame, rerank_column: str
+    ) -> pd.DataFrame:
+        """Reranks the search results based on the specified text column and returns the updated dataframe.
+
+        Args:
+            query_clean (Any): The cleaned query.
+            df (pd.DataFrame): The dataframe containing search results.
+            rerank_column (str): The column name of the text to use for reranking.
+
+        Returns:
+            pd.DataFrame: The reranked dataframe.
+        """
+        print(f"Reranking with ColBERTv2 using {rerank_column}...")
+        reranker = ColbertReranker(column=rerank_column)
         return reranker.rerank(query=query_clean.summary, results_df=df)
 
     def format_result(

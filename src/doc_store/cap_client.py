@@ -517,7 +517,6 @@ class CAPClient(LegalDataSource):
 
                 try:
                     next_result = requests.get(current_page["next"], headers=self.get_api_headers())
-                    next_result = self._request(current_page["next"])
                     current_page = next_result.json()
 
                 except:

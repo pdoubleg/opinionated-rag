@@ -83,7 +83,7 @@ class QuestionAnswer(instructor.OpenAISchema):
 
 def ask_ai(question: str, context: str) -> QuestionAnswer:
     completion = client.chat.completions.create(
-        model="gpt-4-turbo",
+        model="gpt-4-1106-preview",
         temperature=0,
         functions=[QuestionAnswer.openai_schema],
         function_call={"name": QuestionAnswer.openai_schema["name"]},
