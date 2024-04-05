@@ -1,2 +1,11 @@
 .env
 .streamlit/secrets.toml
+**/__pycache__/
+**tmp
+**jpg
+**pdf
+**md
+**.manifest
+**.log
+**.tsv
+**_transactions

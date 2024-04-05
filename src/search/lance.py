@@ -67,7 +67,6 @@ class AbstractModel(BaseModel):
         For dynamic creation of models for the type systems
         create something that inherits from the class and add any extra fields
 
-        when we create models we should audit them somewhere in the system because we can later come back and make them
         """
         namespace = namespace or cls.__entity_namespace__
         return create_model(name, **fields, __module__=namespace, __base__=cls)
@@ -101,7 +100,7 @@ class AbstractModel(BaseModel):
    
 
 """
-Schema tools / pyarrow to mpydantic etc. crude    
+Schema tools / pyarrow to pydantic etc. crude    
 """
 
 
@@ -266,7 +265,7 @@ class InstructEmbeddings(TextEmbeddingFunction):
 
 class Embeddings:
     """
-    an opinionated wrapper around the embedding function loaders - may deprecate
+    an opinionated wrapper around the embedding function loaders
     """
 
     def __init__(self):

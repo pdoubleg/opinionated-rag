@@ -106,7 +106,7 @@ class DocJoinerDF:
         for df, weight in zip(dataframes, self.weights):
             for index, row in df.iterrows():
                 doc_id = row[id_column]
-                rank = index  # Assuming the DataFrame is sorted by relevance
+                rank = index
                 
                 # Update score
                 scores_map[doc_id] += (weight * len(dataframes)) / (k + rank)

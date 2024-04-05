@@ -21,6 +21,49 @@ MAX_METRICS_CONTENT = (
 
 Embedding = list[float]
 
+
+from typing import Optional, List
+from pydantic import BaseModel, Field
+
+class CitationInformation(BaseModel):
+    """Generalized information about a legal citation."""
+
+    citation: str = Field(
+        ...,
+        description="The Citation specified by the user.",
+    )
+    summary: str = Field(
+        ...,
+        description="A fact-focused summary of the citation's scope of authority as evidenced by its past use.",
+    )
+    questions: List[str] = Field(
+        default_factory=list,
+        description="A list of named-entity-free generalized questions, or potential questions the cited case can help answer or address. Do NOT reference specific entities, but rather the broader idea, theory or concept.",
+    )
+    keywords: List[str] = Field(
+        default_factory=list,
+        description="A correctly resolved list of important keywords from the Context. Group similar topics together."
+    )
+    recency: Optional[str] = Field(
+        None,
+        description="Optional summary of changes in the interpretation or use of the cited case with a focus on the most recent (listed toward the end of the Context) texts.",
+    )
+
+    def __str__(self) -> str:
+        """Pretty prints the citation information, wrapping the summary, keywords, and recency text, and listing questions as bullet points."""
+        from textwrap import fill
+        summary_wrapped = fill(self.summary, width=100)
+        questions_formatted = '\n'.join([f"- {q}" for q in self.questions])
+        keywords_wrapped = fill(', '.join(self.keywords), width=100)
+        recency_wrapped = fill(self.recency, width=100) if self.recency else "No recent observations."
+        return (
+            f"Citation: {self.citation}\n"
+            f"Summary:\n{summary_wrapped}\n"
+            f"Questions:\n{questions_formatted}\n"
+            f"Keywords:\n{keywords_wrapped}\n"
+            f"Recency:\n{recency_wrapped}"
+        )
+
 def dataframe_to_text_nodes(
     df: pd.DataFrame,
     id_column: str,

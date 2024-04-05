@@ -117,7 +117,7 @@ def get_llm_fact_pattern_summary(query: str) -> FactSummary:
         messages=[
             {
                 "role": "system",
-                "content": "You are a worls class query understanding AI. Your task is to generate information dense summaries of user queries such that key information is retained and emphasized to support downstream information retrieval.",
+                "content": "You are a world class query understanding AI. Your task is to generate information dense summaries of user queries such that key information is retained and emphasized to support downstream information retrieval.",
             },
             {
                 "role": "user",
@@ -125,6 +125,39 @@ def get_llm_fact_pattern_summary(query: str) -> FactSummary:
             },
         ],
     )
+    
+    
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import List
+
+
+def parallel_get_llm_fact_pattern_summaries(queries: List[str], max_workers: int = 5) -> List[FactSummary]:
+    """
+    Executes get_llm_fact_pattern_summary in parallel for a list of queries.
+
+    Args:
+        queries (List[str]): A list of queries to process.
+        max_workers (int): Maximum number of threads to use.
+
+    Returns:
+        List[FactSummary]: A list of FactSummary objects corresponding to each query.
+    """
+    summaries = [None] * len(queries)  # Pre-allocate list for results
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Create a future for each query
+        future_to_index = {executor.submit(get_llm_fact_pattern_summary, query): i for i, query in enumerate(queries)}
+
+        # As each future completes, store the result in the corresponding position
+        for future in as_completed(future_to_index):
+            index = future_to_index[future]
+            try:
+                summaries[index] = future.result()
+            except Exception as e:
+                print(f"Query at index {index} failed: {e}")
+                summaries[index] = str(e)  # Or handle the error as appropriate
+
+    return summaries
     
     
 async def aget_llm_fact_pattern_summary(query: str, id_value: str) -> Dict:
