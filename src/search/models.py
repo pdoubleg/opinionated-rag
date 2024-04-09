@@ -1,13 +1,22 @@
 from dataclasses import dataclass, fields
 from datetime import datetime
 from enum import Enum
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional
 import pandas as pd
 
 from pydantic import BaseModel
-from llama_index.core.schema import TextNode
+from llama_index.core.schema import TextNode, NodeWithScore
+from llama_index.core.indices.vector_store import VectorStoreIndex
+from llama_index.embeddings.openai import OpenAIEmbedding
+from llama_index.vector_stores.chroma import ChromaVectorStore
+from llama_index.core.storage.storage_context import StorageContext
+import chromadb
 
 from src.types import Document
+
+from src.utils.logging import setup_colored_logging
+
+logger = setup_colored_logging(__name__)
 
 DISABLE_LLM_CHUNK_FILTER = False
 NUM_RERANKED_RESULTS = 10
@@ -21,9 +30,28 @@ MAX_METRICS_CONTENT = (
 
 Embedding = list[float]
 
-
 from typing import Optional, List
 from pydantic import BaseModel, Field
+
+
+class QueryScreening(BaseModel):
+    """Initial evaluation screening for a user new query."""
+    
+    topic: str = Field(
+        ...,
+        description="The high-level type of question being asked using as few words as possible.",
+    )
+    intent: Literal['keyword', 'question-answer'] = Field(
+        ...,
+        description="The predicted search type that would best address the user query. Use 'keyword' when it's clear the user only required dictionary look-up-type search.",
+    )
+    n_subquestions: int = Field(
+        default=0,
+        description="The number of distinct sub-questions that the user query naturally breaks down to, or `0` if the original user query is already atomic.",
+    )
+    
+   
+
 
 class CitationInformation(BaseModel):
     """Generalized information about a legal citation."""
@@ -63,20 +91,43 @@ class CitationInformation(BaseModel):
             f"Keywords:\n{keywords_wrapped}\n"
             f"Recency:\n{recency_wrapped}"
         )
+        
+        
+        
+def init_vector_store_index(nodes: List[TextNode]):
+    chroma_client = chromadb.EphemeralClient()
+    chroma_collection = chroma_client.create_collection("chroma_db")
+
+    embeddings = OpenAIEmbedding(
+        model='text-embedding-ada-002',
+    )
+    vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
+    storage_context = StorageContext.from_defaults(
+        vector_store=vector_store,
+    )
+    index = VectorStoreIndex(
+        nodes=nodes,
+        embed_model=embeddings,
+        storage_context=storage_context,
+    )
+    return index
+
+
 
 def dataframe_to_text_nodes(
     df: pd.DataFrame,
     id_column: str,
-    text_col: str,
+    text_column: str,
     metadata_fields: List[str], 
-    embedding_column: str | None = None
-) -> List[TextNode]:
+    embedding_column: str | None = None,
+    has_score: bool = False
+) -> List[TextNode | NodeWithScore]:
     """
     Creates a list of TextNode objects from a DataFrame based on specified fields for text, metadata, excluded metadata keys, and optionally embedding columns.
 
     Args:
         df (pd.DataFrame): The DataFrame containing the data to be converted into TextNode objects.
-        text_col (str): The column name in the DataFrame to use as the text for each TextNode.
+        text_column (str): The column name in the DataFrame to use as the text for each TextNode.
         metadata_fields (List[str]): A list of column names in the DataFrame to include in the metadata of each TextNode.
         excluded_metadata_keys (List[str] | None): A list of keys to exclude from the embedded metadata in the text representation of each TextNode. Defaults to None.
         embedding_column (List[str]): Column name whose values should be added as an embedding attribute to each TextNode. If None, the embedding attribute is skipped. Defaults to None.
@@ -88,59 +139,81 @@ def dataframe_to_text_nodes(
     for _, row in df.iterrows():
         metadata = {field: row[field] for field in metadata_fields}
         if embedding_column:
-            embedding = row[embedding_column].tolist()
+            embedding = list(row[embedding_column])
             node = TextNode(
                 id_=row[id_column],
-                text=row[text_col],
+                text=row[text_column],
                 metadata=metadata,
-                embedding=embedding or None,
+                embedding=embedding,
                 metadata_template="{key} = {value}",
                 text_template="Metadata:\n{metadata_str}\n----------------------------------------\nContent:\n{content}",
                 )
-            nodes.append(node)
+            if has_score:
+                node_with_score = NodeWithScore(
+                    node=node,
+                    score=row['score'],
+                )
+                nodes.append(node_with_score)
+            else:          
+                nodes.append(node)
         else:
             node = TextNode(
                 id_=row[id_column],
-                text=row[text_col],
+                text=row[text_column],
                 metadata=metadata,
                 metadata_template="{key} = {value}",
                 text_template="Metadata:\n{metadata_str}\n----------------------------------------\nContent:\n{content}",
                 )
-            nodes.append(node)
+            if has_score:
+                node_with_score = NodeWithScore(
+                node=node,
+                score=row['score'],
+                )
+                nodes.append(node_with_score)
+            else:          
+                nodes.append(node)
+        
     return nodes
 
 
 def text_nodes_to_dataframe(
-    text_nodes: List[TextNode],
-    text_col: str = 'text',
+    text_nodes: List[TextNode | NodeWithScore],
+    text_column: str = 'text',
     metadata_fields: Optional[List[str]] = None,
-    embedding_column: Optional[str] = None
+    embedding_column: Optional[str] = None,
 ) -> pd.DataFrame:
     """
-    Converts a list of TextNode objects back into a DataFrame. The DataFrame will contain columns for text,
-    optionally for embedding, and for each metadata field specified.
+    Converts a list of TextNode or NodeWithScore objects back into a DataFrame. The DataFrame will contain columns for text,
+    optionally for embedding, and for each metadata field specified. If the object is a NodeWithScore, a 'score' column will also be included.
 
     Args:
-        text_nodes (List[TextNode]): The list of TextNode objects to be converted into a DataFrame.
-        text_col (str): The column name to use for the text from each TextNode. Defaults to 'text'.
+        text_nodes (List[TextNode | NodeWithScore]): The list of TextNode or NodeWithScore objects to be converted into a DataFrame.
+        text_column (str): The column name to use for the text from each TextNode. Defaults to 'text'.
         metadata_fields (Optional[List[str]]): A list of metadata field names to include in the DataFrame.
             If None, all metadata fields found in the TextNodes will be included. Defaults to None.
         embedding_column (Optional[str]): The column name to use for the embedding from each TextNode.
             If None, the embedding attribute is skipped. Defaults to None.
 
     Returns:
-        pd.DataFrame: A DataFrame created from the list of TextNode objects.
+        pd.DataFrame: A DataFrame created from the list of TextNode or NodeWithScore objects.
     """
     data = []
     for node in text_nodes:
-        row = {text_col: node.text}
+        if isinstance(node, NodeWithScore):
+            text_node = node.node
+            score = node.score
+        else:
+            text_node = node
+            score = None  # Use None for rows where the node is not a NodeWithScore
+
+        row = {text_column: text_node.text, 'score': score}
         if metadata_fields is None:
-            row.update(node.metadata)
+            row.update(text_node.metadata)
         else:
             for field in metadata_fields:
-                row[field] = node.metadata.get(field)
-        if embedding_column and hasattr(node, 'embedding'):
-            row[embedding_column] = node.embedding
+                row[field] = text_node.metadata.get(field)
+        if embedding_column and hasattr(text_node, 'embedding'):
+            row[embedding_column] = text_node.embedding
         data.append(row)
     
     return pd.DataFrame(data)
@@ -158,6 +231,9 @@ def documents2Dataframe(documents: List[TextNode]) -> pd.DataFrame:
 
     df = pd.DataFrame(rows)
     return df
+
+
+
 
 
 @dataclass

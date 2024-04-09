@@ -6,8 +6,9 @@ large schema).
 """
 
 import difflib
+import hashlib
 import pandas as pd
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
@@ -18,6 +19,157 @@ from thefuzz import fuzz, process
 from src.types import Document
 
 from .utils import download_nltk_resource
+
+from src.utils.logging import setup_colored_logging
+
+logger = setup_colored_logging(__name__)
+
+
+
+def find_fuzzy_matches_in_df(
+    query: str,
+    df: pd.DataFrame,
+    text_column: str,
+    k: int = 20,
+    words_before: Optional[int] = 10,
+    words_after: Optional[int] = 10,
+) -> pd.DataFrame:
+    """
+    Find approximate matches of the query in the DataFrame and return surrounding
+    characters.
+
+    Args:
+        query (str): The search string.
+        df (pd.DataFrame): The input DataFrame
+        k (int): Number of best matches to return.
+        words_before (Optional[int]): Number of words to include before each match.
+            Default None => return max
+        words_after (Optional[int]): Number of words to include after each match.
+            Default None => return max
+
+    Returns:
+        pd.DataFrame: DataFrame of matches, including the given number of words around the match.
+    """
+    if df.empty:
+        return pd.DataFrame()
+    
+    df["id"] = df[text_column].apply(
+        lambda x: hashlib.md5(x.encode()).hexdigest()
+    )
+
+    best_matches = process.extract(
+        query,
+        df[text_column].tolist(),
+        limit=k,
+        scorer=fuzz.partial_ratio,
+    )
+    match_ids_scores = []
+    for m in best_matches:
+        if m[1] > 50:
+            # Find the index in the DataFrame where the text matches
+            matched_index = df.index[df[text_column] == m[0]].tolist()
+            # Assuming the match is unique and exists, append the corresponding 'id' and score to match_ids_scores
+            if matched_index:
+                match_ids_scores.append((df.loc[matched_index[0], 'id'], m[1]))
+
+    # Create a DataFrame from match_ids_scores
+    matches_df = pd.DataFrame(match_ids_scores, columns=['id', 'score'])
+
+    # Merge the original DataFrame with the matches DataFrame on 'id' to include the scores
+    orig_doc_matches = pd.merge(df, matches_df, on='id', how='inner')
+
+    if words_after is None and words_before is None:
+        return orig_doc_matches
+
+    def get_context_for_row(row):
+        """
+        Extracts context for each match in a row, starting with a base threshold and increasing
+        it for each subsequent extraction to prioritize high-quality matches.
+
+        Args:
+            row (pd.Series): A row from the DataFrame containing the text and match score.
+
+        Returns:
+            str: A string containing the contexts of good matches separated by " ... ".
+        """
+        choice_text = row[text_column]
+        contexts = []
+        # Initial threshold for a match to be considered good
+        threshold = 50
+        # Amount to increase the threshold by after each good match is found
+        threshold_increment = 10
+        while choice_text != "":
+            context, start_pos, end_pos = get_context(
+                query, choice_text, words_before, words_after
+            )
+            if context == "" or end_pos == 0:
+                break
+            # Check if the context contains a good match by using a scorer, e.g., fuzz.partial_ratio
+            match_quality = fuzz.partial_ratio(query, context)
+            if match_quality > threshold:
+                contexts.append(context)
+                # Increase the threshold for the next match, making it harder to add additional contexts
+                threshold += threshold_increment
+            words = choice_text.split()
+            end_pos = min(end_pos, len(words))
+            choice_text = " ".join(words[end_pos:])
+        return " ... ".join(contexts)
+
+    # Apply context extraction
+    orig_doc_matches['context'] = orig_doc_matches.apply(get_context_for_row, axis=1)
+    orig_doc_matches.sort_values(by='score', ascending=False, inplace=True)
+    return orig_doc_matches
+
+
+def get_context(
+    query: str,
+    text: str,
+    words_before: int | None = 100,
+    words_after: int | None = 100,
+) -> Tuple[str, int, int]:
+    """
+    Returns a portion of text surrounding the best approximate match of the query.
+
+    This function searches for the query within the given text and returns a specified number of words before and after the best match. If no match is found, or if the match quality is below a certain threshold, an empty string and zero positions are returned.
+
+    Args:
+        query (str): The string to search for within the text.
+        text (str): The body of text in which to search for the query.
+        words_before (int | None, optional): The number of words before the query to include in the returned context. Defaults to 100.
+        words_after (int | None, optional): The number of words after the query to include in the returned context. Defaults to 100.
+
+    Returns:
+        Tuple[str, int, int]: A tuple containing the context string (words before, the match, and words after the best match), the start position, and the end position of the match within the text. If no match is found, returns an empty string and zeros for the positions.
+
+    Example:
+        >>> get_context("apple", "The quick brown fox jumps over the lazy dog.", 3, 2)
+        ('fox jumps over the lazy dog', 4, 9)
+    """
+    if words_after is None and words_before is None:
+        # return entire text since we're not asked to return a bounded context
+        return text, 0, 0
+
+    # make sure there is a good enough match to the query
+    if fuzz.partial_ratio(query, text) < 50:
+        return "", 0, 0
+
+    sequence_matcher = difflib.SequenceMatcher(None, text, query)
+    match = sequence_matcher.find_longest_match(0, len(text), 0, len(query))
+
+    if match.size == 0:
+        return "", 0, 0
+
+    segments = text.split()
+    n_segs = len(segments)
+
+    start_segment_pos = len(text[: match.a].split())
+
+    words_before = words_before or n_segs
+    words_after = words_after or n_segs
+    start_pos = max(0, start_segment_pos - words_before)
+    end_pos = min(len(segments), start_segment_pos + words_after + len(query.split()))
+
+    return " ".join(segments[start_pos:end_pos]), start_pos, end_pos
 
 
 def find_fuzzy_matches_in_docs(
@@ -130,6 +282,48 @@ def preprocess_text(text: str) -> str:
     return text
 
 
+def find_closest_matches_with_bm25_df(
+    df: pd.DataFrame,
+    text_column: str,
+    query: str,
+    k: int = 5,
+) -> pd.DataFrame:
+    """
+    Finds the k closest approximate matches using the BM25 algorithm in a DataFrame.
+
+    Args:
+        df (pd.DataFrame): DataFrame containing the Documents to search through.
+        text_column (str): The name of the column in the DataFrame containing the text.
+        query (str): The search query.
+        k (int, optional): Number of matches to retrieve. Defaults to 5.
+
+    Returns:
+        pd.DataFrame: DataFrame of the top k matches with an additional 'score' column.
+    """
+    if df.empty:
+        return pd.DataFrame()
+    
+    # Pre-process query and search space text for bm25
+    df['clean_text'] = df[text_column].apply(preprocess_text)
+    texts = df['clean_text'].tolist()
+    query = preprocess_text(query)
+
+    text_words = [text.split() for text in texts]
+    bm25 = BM25Okapi(text_words)
+    
+    query_words = query.split()
+    doc_scores = bm25.get_scores(query_words)
+
+    # Get indices of top k scores
+    top_indices = sorted(range(len(doc_scores)), key=lambda i: -doc_scores[i])[:k]
+
+    # Select the top k documents based on the scores and add a 'score' column
+    top_docs = df.iloc[top_indices].copy()
+    top_docs['score'] = [doc_scores[i] for i in top_indices]
+
+    return top_docs
+
+
 def find_closest_matches_with_bm25(
     docs: List[Document],
     docs_clean: List[Document],
@@ -164,60 +358,6 @@ def find_closest_matches_with_bm25(
 
     # return the original docs, based on the scores from cleaned docs
     return [(docs[i], doc_scores[i]) for i in top_indices]
-
-
-def get_context(
-    query: str,
-    text: str,
-    words_before: int | None = 100,
-    words_after: int | None = 100,
-) -> Tuple[str, int, int]:
-    """
-    Returns a portion of text containing the best approximate match of the query,
-    including b words before and a words after the match.
-
-    Args:
-    query (str): The string to search for.
-    text (str): The body of text in which to search.
-    b (int): The number of words before the query to return.
-    a (int): The number of words after the query to return.
-
-    Returns:
-    str: A string containing b words before, the match, and a words after
-        the best approximate match position of the query in the text. If no
-        match is found, returns empty string.
-    int: The start position of the match in the text.
-    int: The end position of the match in the text.
-
-    Example:
-    >>> get_context("apple", "The quick brown fox jumps over the apple.", 3, 2)
-    # 'fox jumps over the apple.'
-    """
-    if words_after is None and words_before is None:
-        # return entire text since we're not asked to return a bounded context
-        return text, 0, 0
-
-    # make sure there is a good enough match to the query
-    if fuzz.partial_ratio(query, text) < 40:
-        return "", 0, 0
-
-    sequence_matcher = difflib.SequenceMatcher(None, text, query)
-    match = sequence_matcher.find_longest_match(0, len(text), 0, len(query))
-
-    if match.size == 0:
-        return "", 0, 0
-
-    segments = text.split()
-    n_segs = len(segments)
-
-    start_segment_pos = len(text[: match.a].split())
-
-    words_before = words_before or n_segs
-    words_after = words_after or n_segs
-    start_pos = max(0, start_segment_pos - words_before)
-    end_pos = min(len(segments), start_segment_pos + words_after + len(query.split()))
-
-    return " ".join(segments[start_pos:end_pos]), start_pos, end_pos
 
 
 def eliminate_near_duplicates(passages: List[str], threshold: float = 0.8) -> List[str]:

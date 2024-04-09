@@ -1,4 +1,3 @@
-import logging
 from contextlib import contextmanager
 from typing import (
     Any,
@@ -21,10 +20,13 @@ import pandas as pd
 from openai import OpenAI
 import instructor
 from pydantic import BaseModel, Field, ValidationError, create_model
+from lancedb.pydantic import LanceModel, Vector
 
 from src.types import DocMetaData, Document
 
-logger = logging.getLogger(__name__)
+from src.utils.logging import setup_colored_logging
+
+logger = setup_colored_logging(__name__)
 
 from dotenv import load_dotenv
 
@@ -69,7 +71,7 @@ def extract_data_dynamically(context: str, schema_name: str) -> List[BaseModel]:
             {
                 "role": "user",
                 "content": f"""provide all necessary properties for a {schema_name} data class which captures all given information
-                about the {schema_name}s decribed in the context below. 
+                about the {schema_name}s described in the context below. 
                 context: {' '.join(context)}
                 """,
             },
@@ -517,6 +519,7 @@ def document_compatible_dataframe(
 def dataframe_to_document_model(
     df: pd.DataFrame,
     content: str = "content",
+    embedding: Optional[Vector | List[float]] = None,
     metadata: List[str] = [],
     exclude: List[str] = [],
 ) -> Type[BaseModel]:
@@ -563,7 +566,7 @@ def dataframe_to_document_model(
             None,
         )
         for col in df.columns
-        if col not in metadata and col != content
+        if col not in metadata and col != content and col != embedding
     }
 
     # Create a dynamic subclass of Document
@@ -579,9 +582,11 @@ def dataframe_to_document_model(
         cls: type[BaseModel],
         row: pd.Series,
         content: str = "content",
+        embedding: Optional[Vector | List[float]] = None,
         metadata: List[str] = [],
     ) -> BaseModel | None:
         content_val = row[content] if (content and content in row) else ""
+        embedding_val = row[embedding] if (embedding and embedding in row) else None
         metadata_values = (
             {col: row[col] for col in metadata if col in row} if metadata else {}
         )
@@ -589,7 +594,7 @@ def dataframe_to_document_model(
             col: row[col] for col in additional_fields if col in row and col != content
         }
         metadata = DynamicMetaData(**metadata_values)
-        return cls(content=content_val, metadata=metadata, **additional_values)
+        return cls(content=content_val, embedding=embedding_val, metadata=metadata, **additional_values)
 
     # Bind the method to the class
     DynamicDocument.from_df_row = classmethod(from_df_row)
@@ -600,6 +605,7 @@ def dataframe_to_document_model(
 def dataframe_to_documents(
     df: pd.DataFrame,
     content: str = "content",
+    embedding: Optional[Vector | List[float]] = None,
     metadata: List[str] = [],
     doc_cls: Type[BaseModel] | None = None,
 ) -> List[Document]:
@@ -616,9 +622,10 @@ def dataframe_to_documents(
     Returns:
         List[Document]: The list of Document objects.
     """
-    Model = doc_cls or dataframe_to_document_model(df, content, metadata)
+    Model = doc_cls or dataframe_to_document_model(df, content, embedding, metadata)
     docs = [
-        Model.from_df_row(row, content, metadata)  # type: ignore
+        Model.from_df_row(row, content, embedding, metadata)  # type: ignore
         for _, row in df.iterrows()
     ]
     return [m for m in docs if m is not None]
+

@@ -139,7 +139,8 @@ class SubQuestion(BaseModel):
     """
 
     chain_of_thought: str = Field(
-        description="Reasoning behind the sub-question.", exclude=True
+        description="Reasoning behind the sub-question with respect to its role in answering the primary question.", 
+        exclude=True
     )
     sub_question_topic: str = Field(
         ...,
@@ -147,11 +148,11 @@ class SubQuestion(BaseModel):
     )
     sub_question_query: str = Field(
         ...,
-        description="A distinct and context rich sub-question that can be directly entered into a search engine in order to help answer a higher level user question.",
+        description="A distinct and context rich sub-question that can be directly entered into a vector database, which does similarity search for retrieving documents, in order to help answer a higher level user question.",
     )
     sub_question_keywords: List[str] = Field(
         default_factory=list,
-        description="Keywords to research using exact-match that support the sub-question topic and that are best for direct look-up.",
+        description="Extracted keywords suitable for exact-match text search that support the sub-question topic. Can be technical domain-specific items such as form numbers, formal references, codified rules, citations, etc.",
     )
 
     def execute(
@@ -167,7 +168,7 @@ class SubQuestion(BaseModel):
         logger.info(
             f"\n\nThought: {wrapped_thought}\nSearch topic: {self.sub_question_topic}"
         )
-        logger.info(f"Running vector (OpenAI) search on: {self.sub_question_query}")
+        logger.info(f"Running vector (OpenAI) search: {self.sub_question_query}")
         vector_results = semantic_search.query_similar_documents(
             self.sub_question_query, top_n=10
         )
@@ -178,7 +179,7 @@ class SubQuestion(BaseModel):
         # Check if sub_question_keywords is not None and has valid keywords
         if self.sub_question_keywords and any(self.sub_question_keywords):
             keywords = ", ".join(self.sub_question_keywords)
-            logger.info(f"Running keyword (SPLADE) search on: {keywords}")
+            logger.info(f"Running keyword (SPLADE) search: {keywords}")
             splade_results = splade_search.query_similar_documents(keywords, top_n=10)
 
         # Concatenate results only if splade_results is not empty

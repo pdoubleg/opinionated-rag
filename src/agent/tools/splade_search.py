@@ -12,22 +12,30 @@ logger = setup_colored_logging(__name__)
 
 class SparseEmbeddingsSplade:
     def __init__(
-        self, df: pd.DataFrame, text_column: str, splade_column: str | None = None
+        self, df: pd.DataFrame, text_column: str, embedding_column: str = "splade_embeddings"
     ):
+        """
+        Initializes the SparseEmbeddingsSplade class with a DataFrame, a text column, and optionally an embedding column.
+        If the embedding column is not provided or does not exist in the DataFrame, it generates SPLADE embeddings.
+
+        Args:
+            df (pd.DataFrame): The DataFrame containing the documents.
+            text_column (str): The name of the column in the DataFrame containing the text to embed.
+            embedding_column (Optional[str]): The name of the column in the DataFrame containing pre-computed embeddings.
+        """
         self.df = df
         self.text_column = text_column
-        self.splade_column = splade_column
+        self.embedding_column = embedding_column
         self.sparse_model_id: str = "naver/splade-cocondenser-ensembledistil"
         self.tokenizer = AutoTokenizer.from_pretrained(self.sparse_model_id)
         self.sparse_model = AutoModelForMaskedLM.from_pretrained(self.sparse_model_id)
 
-        if not self.splade_column:
-            logger.info("Generating sparce (SPLADE) embeddings...")
+        if self.embedding_column not in self.df.columns:
+            logger.info("Generating sparse (SPLADE) embeddings...")
             self.df = self.add_splade_embeddings_to_df()
-            self.splade_column = "splade_embeddings"
-            logger.info("Done! Embeddings have been saved to self.df['splade_embeddings']")
-        
-        logger.info(f"Using pre-computed '{self.text_column}' embeddings from existing column: {self.splade_column}")
+            logger.info(f"Done! Embeddings have been saved to self.df['{embedding_column}']")
+        else:
+            logger.info(f"Using pre-computed '{self.text_column}' embeddings from existing column: {self.embedding_column}")
 
     def splade_embed_documents(self, docs: List[str]) -> List[np.ndarray]:
         """
@@ -163,12 +171,13 @@ class SparseEmbeddingsSplade:
             filtered_df = self.df.copy()
 
         query_embedding = self.splade_embed_query(query)
-        document_embeddings = filtered_df[self.splade_column].tolist()
+        document_embeddings = filtered_df[self.embedding_column].tolist()
         similarities = self.dot_product_similarity(document_embeddings, query_embedding)
         if norm_score:
             similarities = self.sigmoid_similarity(similarities)
             
         filtered_df["score"] = similarities
+        filtered_df.drop_duplicates(subset=[self.text_column], keep='first', inplace=True)
         filtered_df["search_type"] = "splade"
         ranked_df = filtered_df.sort_values(
             by="score", ascending=False

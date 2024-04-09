@@ -35,26 +35,22 @@ from llama_index.core.base.embeddings.base import BaseEmbedding
 class ColbertReranker(Reranker):
     """
     Reranks the results using pre-trained ColBERTv2 model.
+        ColBERTv2 (columnar BERT) utilizes late-stage contextual token-level interactions.
+        Specifically, it encodes queries and documents into separate embeddings at the token level where
+        similarity is calculated.
 
-    Parameters
-    ----------
-    model_name : str, default "colbert-ir/colbertv2.0"
-        The name of the encoder model to use.
-    column : str, default "content"
-        The name of the column to use as input to the cross encoder model.
-    return_score : str, default "relevance"
-        options are "relevance" or "all". Only "relevance" is supported for now.
+    Args:
+        model_name (str): The name of the encoder model to use. Defaults to "colbert-ir/colbertv2.0".
+        column (str): The name of the column to use as input to the cross encoder model. Defaults to "content".
     """
 
     def __init__(
         self,
         model_name: str = "colbert-ir/colbertv2.0",
         column: str = "content",
-        return_score: str = "relevance",
     ):
         self.model_name = model_name
         self.column = column
-        self.return_score = return_score
         self.torch = torch
 
     def rerank_hybrid(
@@ -66,19 +62,13 @@ class ColbertReranker(Reranker):
         """
         Reranks the combined results from vector and full-text search results.
 
-        Parameters
-        ----------
-        query : str
-            The search query.
-        vector_results : pd.DataFrame
-            The results from vector search.
-        fts_results : pd.DataFrame
-            The results from full-text search.
+        Args:
+            query (str): The search query.
+            vector_results (pd.DataFrame): The results from vector search.
+            fts_results (pd.DataFrame): The results from full-text search.
 
-        Returns
-        -------
-        pd.DataFrame
-            The reranked results as a DataFrame.
+        Returns:
+            pd.DataFrame: The reranked results as a DataFrame.
         """
         
         combined_results = (
@@ -92,7 +82,9 @@ class ColbertReranker(Reranker):
 
         # Encode the query
         query_encoding = tokenizer(query, return_tensors="pt", truncation=True, max_length=512)
-        query_embedding = model(**query_encoding).last_hidden_state.mean(dim=1)
+        # Note that document level embeddings can be created instead of token-level using the commented line below
+        # query_embedding = model(**query_encoding).last_hidden_state.mean(dim=1)
+        query_embedding = model(**query_encoding).last_hidden_state.squeeze(0)
         scores = []
         # Get score for each document
         for document in docs:
@@ -107,10 +99,9 @@ class ColbertReranker(Reranker):
         # Add the scores to the DataFrame
         combined_results["_relevance_score"] = scores
 
-        if self.return_score == "relevance":
-            combined_results = combined_results.drop(
-                columns=["score", "_distance"], errors="ignore"
-            )
+        combined_results = combined_results.drop(
+            columns=["score", "_distance"], errors="ignore"
+        )
 
         combined_results = combined_results.sort_values(
             by="_relevance_score", ascending=False
@@ -126,17 +117,13 @@ class ColbertReranker(Reranker):
         """
         Reranks the results from a single DataFrame based on their relevance to the query.
 
-        Parameters
-        ----------
-        query : str
-            The search query.
-        results_df : pd.DataFrame
-            The DataFrame containing the results to be reranked. Must have a 'content' column.
+        Args:
+            query (str): The search query.
+            results_df (pd.DataFrame): The DataFrame containing the results to be reranked. 
+                Must have a 'content' column.
 
-        Returns
-        -------
-        pd.DataFrame
-            The reranked results as a DataFrame, including a new '_relevance_score' column.
+        Returns:
+            pd.DataFrame: The reranked results as a DataFrame, including a new '_relevance_score' column.
         """
         if self.column not in results_df.columns:
             raise ValueError(f"The DataFrame must contain a '{self.column}' column.")
@@ -147,7 +134,9 @@ class ColbertReranker(Reranker):
 
         # Encode the query
         query_encoding = tokenizer(query, return_tensors="pt", truncation=True, max_length=512)
-        query_embedding = model(**query_encoding).last_hidden_state.mean(dim=1)
+        # Note that document level embeddings can be created instead of token-level using the commented line below
+        # query_embedding = model(**query_encoding).last_hidden_state.mean(dim=1)
+        query_embedding = model(**query_encoding).last_hidden_state.squeeze(0)
         scores = []
 
         # Get score for each document
@@ -163,10 +152,9 @@ class ColbertReranker(Reranker):
         # Add the scores to the DataFrame
         results_df["_relevance_score"] = scores
 
-        if self.return_score == "relevance":
-            results_df = results_df.drop(
-                columns=["score", "_distance"], errors="ignore"
-            )
+        results_df = results_df.drop(
+            columns=["score", "_distance"], errors="ignore"
+        )
 
         results_df = results_df.sort_values(
             by="_relevance_score", ascending=False
@@ -179,10 +167,8 @@ class ColbertReranker(Reranker):
         """
         Loads the tokenizer and model for the reranker.
 
-        Returns
-        -------
-        Tuple[AutoTokenizer, AutoModel]
-            The tokenizer and model.
+        Returns:
+            Tuple[AutoTokenizer, AutoModel]: A tuple containing the tokenizer and model.
         """
         tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         model = AutoModel.from_pretrained(self.model_name)
@@ -195,25 +181,24 @@ class ColbertReranker(Reranker):
         """
         Calculates the maximum similarity score between the query and document embeddings.
 
-        Parameters
-        ----------
-        query_embedding : torch.Tensor
-            The query embedding tensor.
-        document_embedding : torch.Tensor
-            The document embedding tensor.
+        Args:
+            query_embedding (torch.Tensor): The query embedding tensor.
+            document_embedding (torch.Tensor): The document embedding tensor.
 
-        Returns
-        -------
-        torch.Tensor
-            The maximum similarity score.
+        Returns:
+            torch.Tensor: The maximum similarity score.
         """
         expanded_query = query_embedding.unsqueeze(2)
         expanded_doc = document_embedding.unsqueeze(1)
 
+        # Compute cosine similarity across the embedding dimension
         sim_matrix = self.torch.nn.functional.cosine_similarity(
             expanded_query, expanded_doc, dim=-1
         )
+        # Take the maximum similarity for each query token (across all document tokens)
+        # sim_matrix shape: [batch_size, query_length, doc_length]
         max_sim_scores, _ = self.torch.max(sim_matrix, dim=2)
+        # Average these maximum scores across all query tokens
         avg_max_sim = self.torch.mean(max_sim_scores, dim=1)
 
         return avg_max_sim

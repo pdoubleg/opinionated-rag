@@ -1,4 +1,5 @@
 import asyncio
+from functools import cached_property
 import importlib
 import inspect
 import math
@@ -9,6 +10,10 @@ import tiktoken
 import hashlib
 import uuid
 from typing import Any, BinaryIO, Coroutine
+
+from src.utils.logging import setup_colored_logging
+
+logger = setup_colored_logging(__name__)
 
 
 def stringify(x: Any) -> str:
@@ -156,3 +161,23 @@ def is_coroutine_callable(obj):
     elif callable(obj):
         return inspect.iscoroutinefunction(obj.__call__)
     return False
+
+
+class DataFrameCache:
+    """
+    A class to cache the DataFrame loaded from a parquet file.
+    """
+    def __init__(self, path_to_df: str):
+        self.path_to_df = path_to_df
+    
+    @cached_property
+    def df(self) -> pd.DataFrame:
+        """
+        Caches and returns the DataFrame loaded from a parquet file.
+
+        Returns:
+            pd.DataFrame: The DataFrame loaded from the parquet file.
+        """
+        df = pd.read_parquet(self.path_to_df)
+        logger.info(f"Read in df with shape: {df.shape}")
+        return df

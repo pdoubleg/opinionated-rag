@@ -232,11 +232,13 @@ def create_context(
 def create_formatted_input(
     df: pd.DataFrame,
     query: str,
-    context_token_limit: int,
+    text_column: str = 'body',
+    url_column: str = 'full_link',
+    context_token_limit: int = 3000,
     instructions: str = """Instructions: Using only the provided search results that are relevant, and starting with the most relevant, write a detailed comparative analysis for a new query. If there are no relevant cases say so, and use one example from the search results to illustrate the uniquness of the new query. ALWAYS cite search results using [[number](URL)] notation after the reference.\n\nNew Query:""",
 ) -> str:
 
-    context = create_context(df, query, context_token_limit)
+    context = create_context(df, query, text_column, url_column, context_token_limit)
 
     try:
         prompt = f"""{context}\n\n{instructions}\n{query}\n\nAnalysis:"""
