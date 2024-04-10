@@ -242,9 +242,6 @@ def create_formatted_input(
 
     try:
         prompt = f"""{context}\n\n{instructions}\n{query}\n\nAnalysis:"""
-        prompt_citations = extract_citation_numbers_in_brackets(prompt)
-        # print(f"\nCases in prompt: {prompt_citations}\n")
-        # print(prompt)
         return prompt
     except Exception as e:
         print(e)
@@ -258,8 +255,10 @@ class ResearchReport(BaseModel):
         ...,
         description="A legal style research report comparing a new issue or question with similar past issues.",
     )
-
-
+    source_documents: List[BaseModel] = Field(
+        default_factory=list,
+        description="A list of source documents used to generate the final answer.",
+    )
 
 def get_final_answer(formatted_input: str, model_name: str) -> ResearchReport:
     client = instructor.patch(openai.OpenAI())

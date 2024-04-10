@@ -130,13 +130,13 @@ class SemanticSearch:
         self,
         index: faiss.Index,
         embedding: np.ndarray,
-        top_n: int,
+        top_k: int,
         use_cosine_similarity: bool,
         similarity_threshold: float,
     ) -> Tuple[List[int], np.ndarray]:
         # Get extras since we deduplicate before returning 
         distances, indices = index.search(
-            embedding.reshape(1, -1).astype("float32"), 2 * top_n
+            embedding.reshape(1, -1).astype("float32"), 2 * top_k
         )
 
         if use_cosine_similarity:
@@ -148,13 +148,13 @@ class SemanticSearch:
         indices = indices.flatten()[similarity_scores < similarity_threshold]
         similarity_scores = similarity_scores[similarity_scores < similarity_threshold]
 
-        return indices[:top_n], similarity_scores[:top_n]
+        return indices[:top_k], similarity_scores[:top_k]
 
 
     async def aquery_similar_documents(
         self,
         query: str,
-        top_n: int,
+        top_k: int,
         filter_criteria: Optional[dict | Filter] = None,
         use_cosine_similarity: bool = True,
         similarity_threshold: float = 0.98,
@@ -174,21 +174,22 @@ class SemanticSearch:
 
         index_ = self.build_faiss_index(filtered_embeddings, use_cosine_similarity)
         indices, sim_scores = self.search_faiss_index(
-            index_, query_embedding, top_n, use_cosine_similarity, similarity_threshold
+            index_, query_embedding, top_k, use_cosine_similarity, similarity_threshold
         )
         results_df = filtered_df.iloc[indices].copy()
         results_df["search_type"] = "vector"
         results_df["score"] = sim_scores
+        results_df.drop_duplicates(subset=[self.text_column], keep='first', inplace=True)
         ranked_df = results_df.sort_values(
             by="score", ascending=False
-        ).head(top_n)
+        ).head(top_k)
         return ranked_df
     
     
     def query_similar_documents(
         self,
         query: str,
-        top_n: int,
+        top_k: int,
         filter_criteria: Optional[dict | Filter] = None,
         use_cosine_similarity: bool = True,
         similarity_threshold: float = 0.98,
@@ -208,12 +209,13 @@ class SemanticSearch:
 
         index_ = self.build_faiss_index(filtered_embeddings, use_cosine_similarity)
         indices, sim_scores = self.search_faiss_index(
-            index_, query_embedding, top_n, use_cosine_similarity, similarity_threshold
+            index_, query_embedding, top_k, use_cosine_similarity, similarity_threshold
         )
         results_df = filtered_df.iloc[indices].copy()
         results_df["search_type"] = "vector"
         results_df["score"] = sim_scores
+        results_df.drop_duplicates(subset=[self.text_column], keep='first', inplace=True)
         ranked_df = results_df.sort_values(
             by="score", ascending=False
-        ).head(top_n)
+        ).head(top_k)
         return ranked_df

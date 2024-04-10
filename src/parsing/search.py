@@ -286,7 +286,7 @@ def find_closest_matches_with_bm25_df(
     df: pd.DataFrame,
     text_column: str,
     query: str,
-    k: int = 5,
+    top_k: int = 5,
 ) -> pd.DataFrame:
     """
     Finds the k closest approximate matches using the BM25 algorithm in a DataFrame.
@@ -315,7 +315,7 @@ def find_closest_matches_with_bm25_df(
     doc_scores = bm25.get_scores(query_words)
 
     # Get indices of top k scores
-    top_indices = sorted(range(len(doc_scores)), key=lambda i: -doc_scores[i])[:k]
+    top_indices = sorted(range(len(doc_scores)), key=lambda i: -doc_scores[i])[:top_k]
 
     # Select the top k documents based on the scores and add a 'score' column
     top_docs = df.iloc[top_indices].copy()

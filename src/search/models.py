@@ -5,6 +5,7 @@ from typing import Any, List, Literal, Optional
 import pandas as pd
 
 from pydantic import BaseModel
+from langchain_community.document_loaders import DataFrameLoader
 from llama_index.core.schema import TextNode, NodeWithScore
 from llama_index.core.indices.vector_store import VectorStoreIndex
 from llama_index.embeddings.openai import OpenAIEmbedding
@@ -219,13 +220,17 @@ def text_nodes_to_dataframe(
     return pd.DataFrame(data)
 
 
-def documents2Dataframe(documents: List[TextNode]) -> pd.DataFrame:
+def Dataframe2documents(df):
+    loader = DataFrameLoader(df[['context', 'id', 'citation', 'name_abbreviation', 'court_name']], page_content_column="context")
+    docs = loader.load()
+    return docs
+
+def documents2Dataframe(documents: List[Document]) -> pd.DataFrame:
     rows = []
     for chunk in documents:
         row = {
-            "text": chunk.text,
+            "context": chunk.page_content,
             **chunk.metadata,
-            "chunk_id": chunk.id,
         }
         rows = rows + [row]
 

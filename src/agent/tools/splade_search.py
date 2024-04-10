@@ -146,7 +146,7 @@ class SparseEmbeddingsSplade:
     def query_similar_documents(
         self, 
         query: str, 
-        top_n: int = 20, 
+        top_k: int = 20, 
         filter_criteria: dict | Filter | None = None,
         norm_score: bool = False,
     ) -> pd.DataFrame:
@@ -155,11 +155,11 @@ class SparseEmbeddingsSplade:
 
         Args:
             query (str): The query to search for.
-            top_n (int): The number of top documents to return.
+            top_k (int): The number of top documents to return.
             filter_criteria (optional, dict): A dictionary of key (column names) value pairs to filter the df.
 
         Returns:
-            pd.DataFrame: A dataframe containing the top_n documents and their similarity scores, sorted by similarity.
+            pd.DataFrame: A dataframe containing the top_k documents and their similarity scores, sorted by similarity.
         """
         if filter_criteria is not None:
             filtered_df = self.df.copy()
@@ -181,7 +181,7 @@ class SparseEmbeddingsSplade:
         filtered_df["search_type"] = "splade"
         ranked_df = filtered_df.sort_values(
             by="score", ascending=False
-        ).head(top_n)
+        ).head(top_k)
         return ranked_df
 
     def generate_expansion_terms(self, input_string: str) -> list:

@@ -1,3 +1,4 @@
+import functools
 import os
 import re
 import instructor
@@ -19,6 +20,7 @@ from src.utils.logging import setup_colored_logging
 logger = setup_colored_logging(__name__)
 
 
+@functools.cache
 def screen_query(user_query: str, model_name: str = 'gpt-3.5-turbo') -> QueryScreening:
     client = instructor.patch(openai.OpenAI())
     return client.chat.completions.create(
@@ -408,94 +410,3 @@ def auto_filter_fts_search(
 
     return result
 
-
-def auto_filter_hybrid_search(
-    df: pd.DataFrame,
-    query: str,
-    text_column: str,
-    embeddings_column: str,
-    filter_fields: List[str],
-    top_k: int = 20,
-    use_llm_filter: bool = True,
-) -> pd.DataFrame:
-    """
-    Performs a vector search on the given DataFrame based on the specified query and filter fields.
-    Optionally applies a query plan to refine the search.
-
-    Args:
-        df (pd.DataFrame): The DataFrame to search.
-        query (str): The query string to search for.
-        text_column (str): The name of the column containing text to search.
-        embeddings_column (str): The name of the column containing embeddings.
-        filter_fields (List[str]): A list of fields to filter the search results.
-        top_k (int): The maximum number of search results to return.
-        use_llm_filter (bool): Whether to use a generated query plan for filtering. Defaults to True.
-
-    Returns:
-        pd.DataFrame: A DataFrame containing the top_k search results.
-    """
-    if use_llm_filter:
-        query_plan = generate_query_plan(
-            input_df=df,
-            query=query,
-            filter_fields=filter_fields,
-        )
-
-        if not query_plan.filter:
-            logger.info(f"No filters were identified for query: {query}")
-            search_query = query_plan.original_query
-        else:
-            logger.info(f"Applying filter(s): {query_plan.filter}")
-            logger.info(f"Revised query: {query_plan.rephrased_query}")
-            search_query = query_plan.rephrased_query
-    else:
-        logger.info("Skipping filter generation and using the input query for search.")
-        search_query = query
-
-    df.rename(columns={embeddings_column: "vector", text_column: "text"}, inplace=True)
-    uri = "../temp-lancedb/pd_table.lance"
-    db = lancedb.connect(uri)
-    registry = EmbeddingFunctionRegistry.get_instance()
-    func = registry.get("openai").create()
-    
-    class Schema(LanceModel):
-        text: str = func.SourceField()
-        vector: Vector(func.ndims()) = func.VectorField()
-    
-    
-    # filter_fields.append(text_column)
-    # filter_fields.append("vector")
-    try:
-        table = db.create_table("temp_lance", schema=Schema, mode="create")
-    except:
-        table = db.create_table("temp_lance", schema=Schema, mode="overwrite")
-   
-    query_clean = (
-        search_query.replace("\n", " ")
-        .replace("AND", "and")
-        .replace("OR", "or")
-        .replace("NOT", "not")
-        .replace("'", "")
-        .replace('"', "")
-    )
-    
-    table.create_fts_index("text", replace=True)
-    
-
-    if use_llm_filter and query_plan.filter:
-        result = (
-            table.search(query_clean, query_type="hybrid")
-            .where(query_plan.filter, prefilter=True)
-            .limit(top_k)
-            .to_pandas()
-        )
-    else:
-        result = (
-            table.search(query_clean, query_type="hybrid")
-            .limit(top_k)
-            .to_pandas()
-        )
-
-    result.rename(columns={"vector": embeddings_column}, inplace=True)
-    logger.info(f"Hybrid search yielded a DataFrame with {len(result):,} rows")
-    return result

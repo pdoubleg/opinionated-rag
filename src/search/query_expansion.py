@@ -1,4 +1,5 @@
 import enum
+import functools
 import re
 from typing import List
 import pandas as pd
@@ -102,7 +103,7 @@ class SubQuestionList(BaseModel):
         description="Sub-questions related to the main question."
     )
 
-
+@functools.cache
 def generate_subquestions(query: str, n: str = "2 to 4") -> SubQuestionList:
     client = instructor.patch(openai.OpenAI())
 
@@ -222,7 +223,7 @@ class MultiSearch(BaseModel):
         return vector_results, splade_results
 
 
-def segment(user_query: str, n: str = "2 to 4") -> MultiSearch:
+def segment_search_query(user_query: str, n: str = "2 to 4") -> MultiSearch:
     """
     Convert a string into multiple search queries.
 
