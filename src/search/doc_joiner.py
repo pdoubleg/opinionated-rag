@@ -76,7 +76,7 @@ class DocJoinerDF:
             output_df = self._merge(dataframes, "_internal_id")
 
         if self.top_k:
-            output_df = output_df.head(self.top_k)
+            output_df = output_df.nlargest(self.top_k, "score")
 
         # Drop the internal ID column before returning the final DataFrame
         output_df.drop(columns=["_internal_id"], inplace=True)
@@ -117,12 +117,12 @@ class DocJoinerDF:
         # Deduplicate by keeping the highest score for each unique document
         deduplicated_df = (
             non_array_df.sort_values(by="score", ascending=False)
-            .drop_duplicates(id_column)
+            .drop_duplicates(subset=id_column, keep="first")
             .sort_index()
         )
         # Re-attach array columns
         final_df = pd.concat([deduplicated_df, concatenated_df[array_columns]], axis=1)
-        final_df.sort_values(by='score', ascending=False, inplace=True)
+        final_df.sort_values(by="score", ascending=False, inplace=True)
         return final_df
 
     def _reciprocal_rank_fusion(
@@ -142,10 +142,9 @@ class DocJoinerDF:
             self.weights = [1.0 / len(dataframes)] * len(dataframes)
 
         for df_idx, (df, weight) in enumerate(zip(dataframes, self.weights)):
-            for rank, (_, row) in enumerate(df.iterrows(), start=1):  # Use enumerate to get the rank based on position
+            for rank, (_, row) in enumerate(df.iterrows(), start=1):
                 doc_id = row[id_column]
-                # Calculate reciprocal rank fusion score
-                scores_map[doc_id] += (weight * len(dataframes)) / (k + rank - 1)  # Adjusted to use enumerate rank
+                scores_map[doc_id] += (weight * len(dataframes)) / (k + rank - 1)
                 if doc_id not in documents_map:
                     documents_map[doc_id] = row.to_dict()
 
@@ -156,10 +155,14 @@ class DocJoinerDF:
             documents_map[doc_id]["score"] = scores_map[doc_id] / max_possible_score
 
         # Convert the documents_map to a DataFrame
-        result_df = pd.DataFrame.from_dict(documents_map, orient="index").reset_index(drop=True)
+        result_df = pd.DataFrame.from_dict(documents_map, orient="index").reset_index(
+            drop=True
+        )
 
         # Handle duplicates based on text content, retaining the highest-ranking instance
-        result_df = result_df.sort_values(by="score", ascending=False).drop_duplicates(subset=id_column, keep='first')
+        result_df = result_df.sort_values(by="score", ascending=False).drop_duplicates(
+            subset=id_column, keep="first"
+        )
 
         return result_df
 

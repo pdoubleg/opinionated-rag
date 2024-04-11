@@ -97,7 +97,7 @@ def get_claim_numbers_from_citations(
 
 
 class FactSummary(BaseModel):
-    """A detailed facual summarization."""
+    """A detailed factual summarization."""
 
     summary: str = Field(
         ...,
@@ -108,7 +108,7 @@ class FactSummary(BaseModel):
 def get_llm_fact_pattern_summary(query: str) -> FactSummary:
     client = instructor.patch(openai.OpenAI())
     return client.chat.completions.create(
-        model="gpt-4-turbo-preview",
+        model="gpt-4-turbo",
         response_model=FactSummary,
         max_retries=Retrying(
             stop=stop_after_attempt(5),
@@ -181,19 +181,20 @@ async def aget_llm_fact_pattern_summary(query: str, id_value: str) -> Dict:
         ],
     )
     result = response.model_dump()
-    result['id'] = id_value
+    result['temp_id'] = id_value
     return result
 
 
-async def aget_fact_patterns_df(df: pd.DataFrame, text_col: str, id_col: str) -> pd.DataFrame:
-    tasks = [aget_llm_fact_pattern_summary(row[text_col], str(row[id_col])) for _, row in df.iterrows()]
+async def aget_fact_patterns_df(df: pd.DataFrame, text_col: str) -> pd.DataFrame:
+    df['temp_id'] = [str(i) for i in range(len(df))]
+    tasks = [aget_llm_fact_pattern_summary(row[text_col], str(row['temp_id'])) for _, row in df.iterrows()]
     results = []
     # Wrap asyncio.as_completed with tqdm for progress tracking
     for future in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Processing summaries"):
         result = await future
         results.append(result)
     results_df = pd.DataFrame(results)
-    merged_df = df.merge(results_df, left_on=id_col, right_on='id')
+    merged_df = df.merge(results_df, left_on='temp_id', right_on='temp_id')
     return merged_df
 
 

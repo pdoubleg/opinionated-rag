@@ -99,10 +99,6 @@ class ColbertReranker(Reranker):
         # Add the scores to the DataFrame
         combined_results["_relevance_score"] = scores
 
-        combined_results = combined_results.drop(
-            columns=["score", "_distance"], errors="ignore"
-        )
-
         combined_results = combined_results.sort_values(
             by="_relevance_score", ascending=False
         )
@@ -151,10 +147,6 @@ class ColbertReranker(Reranker):
 
         # Add the scores to the DataFrame
         results_df["_relevance_score"] = scores
-
-        results_df = results_df.drop(
-            columns=["score", "_distance"], errors="ignore"
-        )
 
         results_df = results_df.sort_values(
             by="_relevance_score", ascending=False
