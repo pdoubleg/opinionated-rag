@@ -1,10 +1,10 @@
 from dataclasses import dataclass, fields
 from datetime import datetime
 from enum import Enum
-from typing import Any, List, Literal, Optional
+from typing import Any, List, Literal, Optional, Sequence
 import pandas as pd
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from langchain_community.document_loaders import DataFrameLoader
 from llama_index.core.schema import TextNode, NodeWithScore
 from llama_index.core.indices.vector_store import VectorStoreIndex
@@ -19,6 +19,8 @@ from src.utils.logging import setup_colored_logging
 
 logger = setup_colored_logging(__name__)
 
+# Weighting factor between Vector and Keyword Search, 1 for completely vector search
+HYBRID_ALPHA = 0.62
 DISABLE_LLM_CHUNK_FILTER = False
 NUM_RERANKED_RESULTS = 10
 NUM_RETURNED_HITS = 20
@@ -37,22 +39,51 @@ from pydantic import BaseModel, Field
 
 class QueryScreening(BaseModel):
     """Initial evaluation screening for a user new query."""
-    
+
     topic: str = Field(
         ...,
         description="The high-level type of question being asked using as few words as possible.",
     )
-    intent: Literal['keyword', 'question-answer'] = Field(
+    question_quality: str = Field(
         ...,
-        description="The predicted search type that would best address the user query. Use 'keyword' when it's clear the user only required dictionary look-up-type search.",
+        description="A critical assessment of the quality of the user's question. A high quality question is well defined, follows a logical flow, contains details while still being direct.",
     )
     n_subquestions: int = Field(
         default=0,
         description="The number of distinct sub-questions that the user query naturally breaks down to, or `0` if the original user query is already atomic.",
     )
     
-   
 
+class BaseFilter(BaseModel):
+    """A key value pair search filter."""
+    chain_of_thought: str = Field(
+        description="Reasoning behind the filter selection with respect to its role in answering the primary question.", 
+        exclude=True
+    )
+    filter_key: str = Field(
+        ...,
+        description="A column name from a pandas DataFrame to use for filtering.",
+    )
+    filter_value: str = Field(
+        ...,
+        description="A value from a pandas Series to select for filtering",
+    )
+    
+    @property
+    def filter_dict(self):
+        return {self.filter_key: self.filter_value}
+
+# class SearchFilters(BaseModel):
+#     """A list of key value pair search filters."""
+
+#     chain_of_thought: str = Field(
+#         description="Reasoning behind the filter selection with respect to its role in answering the primary question.", 
+#         exclude=True
+#     )
+#     search_filters = Sequence[BaseFilter] = Field(
+#         ...,
+#         description="A list of key value pair filters used to limit a search space to the area of interest.",
+#     )
 
 class CitationInformation(BaseModel):
     """Generalized information about a legal citation."""
@@ -71,7 +102,7 @@ class CitationInformation(BaseModel):
     )
     keywords: List[str] = Field(
         default_factory=list,
-        description="A correctly resolved list of important keywords from the Context. Group similar topics together."
+        description="A correctly resolved list of important keywords from the Context. Group similar topics together.",
     )
     recency: Optional[str] = Field(
         None,
@@ -81,10 +112,13 @@ class CitationInformation(BaseModel):
     def __str__(self) -> str:
         """Pretty prints the citation information, wrapping the summary, keywords, and recency text, and listing questions as bullet points."""
         from textwrap import fill
+
         summary_wrapped = fill(self.summary, width=100)
-        questions_formatted = '\n'.join([f"- {q}" for q in self.questions])
-        keywords_wrapped = fill(', '.join(self.keywords), width=100)
-        recency_wrapped = fill(self.recency, width=100) if self.recency else "No recent observations."
+        questions_formatted = "\n".join([f"- {q}" for q in self.questions])
+        keywords_wrapped = fill(", ".join(self.keywords), width=100)
+        recency_wrapped = (
+            fill(self.recency, width=100) if self.recency else "No recent observations."
+        )
         return (
             f"Citation: {self.citation}\n"
             f"Summary:\n{summary_wrapped}\n"
@@ -92,15 +126,14 @@ class CitationInformation(BaseModel):
             f"Keywords:\n{keywords_wrapped}\n"
             f"Recency:\n{recency_wrapped}"
         )
-        
-        
-        
+
+
 def init_vector_store_index(nodes: List[TextNode]):
     chroma_client = chromadb.EphemeralClient()
     chroma_collection = chroma_client.create_collection("chroma_db")
 
     embeddings = OpenAIEmbedding(
-        model='text-embedding-ada-002',
+        model="text-embedding-ada-002",
     )
     vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
     storage_context = StorageContext.from_defaults(
@@ -114,14 +147,13 @@ def init_vector_store_index(nodes: List[TextNode]):
     return index
 
 
-
 def dataframe_to_text_nodes(
     df: pd.DataFrame,
     id_column: str,
     text_column: str,
-    metadata_fields: List[str], 
+    metadata_fields: List[str],
     embedding_column: str | None = None,
-    has_score: bool = False
+    has_score: bool = False,
 ) -> List[TextNode | NodeWithScore]:
     """
     Creates a list of TextNode objects from a DataFrame based on specified fields for text, metadata, excluded metadata keys, and optionally embedding columns.
@@ -148,14 +180,14 @@ def dataframe_to_text_nodes(
                 embedding=embedding,
                 metadata_template="{key} = {value}",
                 text_template="Metadata:\n{metadata_str}\n----------------------------------------\nContent:\n{content}",
-                )
+            )
             if has_score:
                 node_with_score = NodeWithScore(
                     node=node,
-                    score=row['score'],
+                    score=row["score"],
                 )
                 nodes.append(node_with_score)
-            else:          
+            else:
                 nodes.append(node)
         else:
             node = TextNode(
@@ -164,22 +196,22 @@ def dataframe_to_text_nodes(
                 metadata=metadata,
                 metadata_template="{key} = {value}",
                 text_template="Metadata:\n{metadata_str}\n----------------------------------------\nContent:\n{content}",
-                )
+            )
             if has_score:
                 node_with_score = NodeWithScore(
-                node=node,
-                score=row['score'],
+                    node=node,
+                    score=row["score"],
                 )
                 nodes.append(node_with_score)
-            else:          
+            else:
                 nodes.append(node)
-        
+
     return nodes
 
 
 def text_nodes_to_dataframe(
     text_nodes: List[TextNode | NodeWithScore],
-    text_column: str = 'text',
+    text_column: str = "text",
     metadata_fields: Optional[List[str]] = None,
     embedding_column: Optional[str] = None,
 ) -> pd.DataFrame:
@@ -207,23 +239,27 @@ def text_nodes_to_dataframe(
             text_node = node
             score = None  # Use None for rows where the node is not a NodeWithScore
 
-        row = {text_column: text_node.text, 'score': score}
+        row = {text_column: text_node.text, "score": score}
         if metadata_fields is None:
             row.update(text_node.metadata)
         else:
             for field in metadata_fields:
                 row[field] = text_node.metadata.get(field)
-        if embedding_column and hasattr(text_node, 'embedding'):
+        if embedding_column and hasattr(text_node, "embedding"):
             row[embedding_column] = text_node.embedding
         data.append(row)
-    
+
     return pd.DataFrame(data)
 
 
 def Dataframe2documents(df):
-    loader = DataFrameLoader(df[['context', 'id', 'citation', 'name_abbreviation', 'court_name']], page_content_column="context")
+    loader = DataFrameLoader(
+        df[["context", "id", "citation", "name_abbreviation", "court_name"]],
+        page_content_column="context",
+    )
     docs = loader.load()
     return docs
+
 
 def documents2Dataframe(documents: List[Document]) -> pd.DataFrame:
     rows = []
@@ -236,9 +272,6 @@ def documents2Dataframe(documents: List[Document]) -> pd.DataFrame:
 
     df = pd.DataFrame(rows)
     return df
-
-
-
 
 
 @dataclass
@@ -283,10 +316,11 @@ class DocMetadataAwareIndexChunk(IndexChunk):
     the following:
 
     document_sets: all document sets the source document for this chunk is a part
-                   of. This is used for filtering / personas.
+                   of. This is used for filtering.
     boost: influences the ranking of this chunk at query time. Positive -> ranked higher,
            negative -> ranked lower.
     """
+
     document_sets: set[str]
     boost: int
 
@@ -343,12 +377,10 @@ class InferenceChunk(BaseChunk):
 
 
 class DocumentSource(str, Enum):
-    # Special case, document passed in via Danswer APIs without specifying a source type
-    INGESTION_API = "ingestion_api"
-    SLACK = "slack"
-    WEB = "web"
-    GOOGLE_DRIVE = "google_drive"
-    GMAIL = "gmail"
+    QUESTIONS = "questions"
+    OPINIONS = "opinions"
+    EXTRACTED_QUESTIONS = "extracted_questions"
+    OPINION_KEYWORDS = "opinion_keywords"
 
 
 class OptionalSearchSetting(str, Enum):
@@ -383,14 +415,13 @@ class Tag(BaseModel):
 
 
 class BaseFilters(BaseModel):
-    source_type: list[DocumentSource] | None = None
-    document_set: list[str] | None = None
-    time_cutoff: datetime | None = None
+    source_type: DocumentSource | None = None
+    document_set: str | None = None
     tags: list[Tag] | None = None
 
 
 class IndexFilters(BaseFilters):
-    access_control_list: list[str] | None
+    filter_list: list[str] | None
 
 
 class ChunkMetric(BaseModel):
@@ -402,37 +433,41 @@ class ChunkMetric(BaseModel):
 
 class SearchQuery(BaseModel):
     query: str
-    filters: IndexFilters
-    recency_bias_multiplier: float
-    num_hits: int = NUM_RETURNED_HITS
-    offset: int = 0
+    filters: Tag | List[Tag] | None = None
+    num_hits: int = 25
     search_type: SearchType = SearchType.HYBRID
-    skip_rerank: bool = not SKIP_RERANK
-    # Only used if not skip_rerank
-    num_rerank: int | None = NUM_RERANKED_RESULTS
-    skip_llm_chunk_filter: bool = DISABLE_LLM_CHUNK_FILTER
+    rerank: bool = False
+    # Only used if rerank
+    num_rerank: int | None = 10
+    llm_chunk_filter: bool = False
     # Only used if not skip_llm_chunk_filter
-    max_llm_filter_chunks: int = NUM_RERANKED_RESULTS
+    max_llm_filter_chunks: int = 10
+    subquestions: List[str] | None = None
 
-    class Config:
-        frozen = True
+    model_config = ConfigDict(
+        frozen=True,
+        use_enum_values=False,
+    )
+
+
+class SearchRequest(BaseModel):
+    """Input to the SearchPipeline."""
+    query: str
+    search_type: SearchType = SearchType.HYBRID
+    human_selected_filters: BaseFilters | None = None
+    enable_auto_detect_filters: bool | None = None
+    recency_bias_multiplier: float = 1.0
+    hybrid_alpha: float = HYBRID_ALPHA
+    # This is to forcibly skip (or run) the step, if None it uses the system defaults
+    skip_rerank: bool | None = None
+    skip_llm_chunk_filter: bool | None = None
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class RetrievalDetails(BaseModel):
-    # Use LLM to determine whether to do a retrieval or only rely on existing history
-    # If the Persona is configured to not run search (0 chunks), this is bypassed
-    # If no Prompt is configured, the only search results are shown, this is bypassed
-    run_search: OptionalSearchSetting = OptionalSearchSetting.ALWAYS
-    # Is this a real-time/streaming call or a question where Danswer can take more time?
-    # Used to determine reranking flow
-    real_time: bool = True
-    # The following have defaults in the Persona settings which can be overriden via
-    # the query, if None, then use Persona settings
     filters: BaseFilters | None = None
     enable_auto_detect_filters: bool | None = None
-    # if None, no offset / limit
-    offset: int | None = None
-    limit: int | None = None
 
 
 class SearchDoc(BaseModel):
@@ -443,23 +478,11 @@ class SearchDoc(BaseModel):
     blurb: str
     source_type: DocumentSource
     boost: int
-    # Whether the document is hidden when doing a standard search
-    # since a standard search will never find a hidden doc, this can only ever
-    # be `True` when doing an admin search
-    hidden: bool
     metadata: dict[str, str | list[str]]
     score: float | None
-    # Matched sections in the doc. Uses Vespa syntax e.g. <hi>TEXT</hi>
-    # to specify that a set of words should be highlighted. For example:
-    # ["<hi>the</hi> <hi>answer</hi> is 42", "the answer is <hi>42</hi>""]
-    match_highlights: list[str]
-    # when the doc was last updated
-    updated_at: datetime | None
-    primary_owners: list[str] | None
-    secondary_owners: list[str] | None
 
     def dict(self, *args: list, **kwargs: dict[str, Any]) -> dict[str, Any]:  # type: ignore
-        initial_dict = super().dict(*args, **kwargs)  # type: ignore
+        initial_dict = super().model_dump(*args, **kwargs)  # type: ignore
         initial_dict["updated_at"] = (
             self.updated_at.isoformat() if self.updated_at else None
         )

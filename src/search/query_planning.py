@@ -14,14 +14,85 @@ from pydantic import BaseModel, Field
 from tenacity import Retrying, stop_after_attempt, wait_fixed
 
 from src.embedding_models.models import OpenAIEmbeddings
-from src.search.models import QueryScreening
+from src.search.models import QueryScreening, BaseFilter
 from src.utils.logging import setup_colored_logging
 
 logger = setup_colored_logging(__name__)
 
 
+system_message_df = f"""
+You will receive a QUERY, to be answered based on an EXTREMELY LARGE pandas DataFrame
+of documents you DO NOT have access to, but your ASSISTANT does.
+You only know that the DataFrame contains a column named `text` and FILTERABLE fields in the SCHEMA below:  
+
+{{doc_schema}}
+
+Based on the QUERY and the above SCHEMA, your task is to determine a  set of potential SEARCH FILTERS, 
+consisting of key value pairs where keys are column names and values are from a pandas DataFrame:
+- FILTER KEY options will always be listed in the SCHEMA.
+- FILTER VALUE can be inferred. For example if a `state` column shows values ['TX', 'NJ', 'AL'] we can assume `FL` would be valid. 
+
+
+EXAMPLE:
+------- 
+Suppose there is a document-set about crime reports, where:
+    CONTENT = crime report,
+    Filterable SCHEMA consists of city_name, year, num_deaths.
+
+Then given this ORIGINAL QUERY: 
+
+    What were the total deaths in shoplifting crimes in Los Angeles in 2023?
+
+A POSSIBLE QUERY PLAN could be:
+
+FILTER KEY : "city_name"
+FILTER VALUE: "Los Angeles"
+
+------------- END OF EXAMPLE ----------------
+
+The FILTER must be a key value pair of strings.
+Remember we will be using it on a pandas DataFrame.
+            
+"""
+
+
+
+def generate_query_filters(
+    search_df: pd.DataFrame, query: str, filter_fields: List[str], n_vals: int = 20, verbose: bool = False
+) -> List[BaseFilter]:
+    client = instructor.patch(openai.OpenAI())
+
+    df = search_df[filter_fields]
+
+    filter_string = describe_dataframe(
+        input_df=df,
+        filter_fields=filter_fields,
+        n_vals=n_vals,
+    )
+    if verbose:
+        logger.info(f"Schema shown to LLM: {filter_string}")
+    return client.chat.completions.create(
+        model="gpt-4-1106-preview",
+        response_model=Iterable[BaseFilter],
+        max_retries=Retrying(
+            stop=stop_after_attempt(5),
+            wait=wait_fixed(1),
+        ),
+        messages=[
+            {
+                "role": "system",
+                "content": system_message_df.format(doc_schema=filter_string),
+            },
+            {
+                "role": "user",
+                "content": f"Here is the QUERY: {query}",
+            },
+        ],
+    )
+
+
 @functools.cache
-def screen_query(user_query: str, model_name: str = 'gpt-3.5-turbo') -> QueryScreening:
+def screen_query(query: str, model_name: str = 'gpt-3.5-turbo') -> QueryScreening:
     client = instructor.patch(openai.OpenAI())
     return client.chat.completions.create(
         model=model_name,
@@ -37,7 +108,7 @@ def screen_query(user_query: str, model_name: str = 'gpt-3.5-turbo') -> QueryScr
             },
             {
                 "role": "user",
-                "content": f"# New User Query:\n{user_query}"
+                "content": f"# New User Query:\n{query}"
             },
         ],
     )

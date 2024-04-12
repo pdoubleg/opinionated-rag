@@ -447,6 +447,7 @@ def numpy_to_python_type(numpy_type: Type[Any]) -> Type[Any]:
         np.int64: int,
         np.int32: int,
         np.bool_: bool,
+        np.ndarray: List[float],
         # Add other numpy types as necessary
     }
     return type_mapping.get(numpy_type, numpy_type)
@@ -470,50 +471,6 @@ def first_non_null(series: pd.Series) -> Any | None:
         if item is not None:
             return item
     return None
-
-
-def document_compatible_dataframe(
-    df: pd.DataFrame,
-    content: str = "content",
-    metadata: List[str] = [],
-) -> Tuple[pd.DataFrame, List[str]]:
-    """
-    Convert dataframe so it is compatible with Document class:
-    - has "content" column
-    - has an "id" column to be used as Document.metadata.id
-
-    Args:
-        df: dataframe to convert
-        content: name of content column
-        metadata: list of metadata column names
-
-    Returns:
-        Tuple[pd.DataFrame, List[str]]: dataframe, metadata
-            - dataframe: dataframe with "content" column and "id" column
-            - metadata: list of metadata column names, including "id"
-    """
-    if content not in df.columns:
-        raise ValueError(
-            f"""
-            Content column {content} not in dataframe, 
-            Please specify the `content` parameter as a
-            text-based column in the dataframe.
-            """
-        )
-    if content != "content":
-        # rename content column to "content", leave existing column intact
-        df = df.rename(columns={content: "content"}, inplace=False)
-
-    actual_metadata = metadata.copy()
-    if "id" not in df.columns:
-        docs = dataframe_to_documents(df, content="content", metadata=metadata)
-        ids = [str(d.id()) for d in docs]
-        df["id"] = ids
-
-    if "id" not in actual_metadata:
-        actual_metadata += ["id"]
-
-    return df, actual_metadata
 
 
 def dataframe_to_document_model(
@@ -548,7 +505,7 @@ def dataframe_to_document_model(
         metadata_fields = {
             col: (
                 Optional[numpy_to_python_type(type(first_non_null(df[col])))],
-                None,  # Optional[numpy_to_python_type(type(first_non_null(df[col])))],
+                None,
             )
             for col in metadata
         }

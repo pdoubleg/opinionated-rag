@@ -19,7 +19,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-from pydantic import BaseModel, Field, root_validator, validator
+from pydantic import BaseModel, ConfigDict, Field, root_validator, validator
 
 from typing import Optional, Type, Generic, TypeVar, List, Dict, Any
 from datetime import datetime, timedelta
@@ -127,38 +127,6 @@ def get_llm_fact_pattern_summary(query: str) -> FactSummary:
     )
     
     
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List
-
-
-def parallel_get_llm_fact_pattern_summaries(queries: List[str], max_workers: int = 5) -> List[FactSummary]:
-    """
-    Executes get_llm_fact_pattern_summary in parallel for a list of queries.
-
-    Args:
-        queries (List[str]): A list of queries to process.
-        max_workers (int): Maximum number of threads to use.
-
-    Returns:
-        List[FactSummary]: A list of FactSummary objects corresponding to each query.
-    """
-    summaries = [None] * len(queries)  # Pre-allocate list for results
-
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Create a future for each query
-        future_to_index = {executor.submit(get_llm_fact_pattern_summary, query): i for i, query in enumerate(queries)}
-
-        # As each future completes, store the result in the corresponding position
-        for future in as_completed(future_to_index):
-            index = future_to_index[future]
-            try:
-                summaries[index] = future.result()
-            except Exception as e:
-                print(f"Query at index {index} failed: {e}")
-                summaries[index] = str(e)  # Or handle the error as appropriate
-
-    return summaries
-    
     
 async def aget_llm_fact_pattern_summary(query: str, id_value: str) -> Dict:
     client = instructor.patch(openai.AsyncOpenAI())
@@ -196,6 +164,39 @@ async def aget_fact_patterns_df(df: pd.DataFrame, text_col: str) -> pd.DataFrame
     results_df = pd.DataFrame(results)
     merged_df = df.merge(results_df, left_on='temp_id', right_on='temp_id')
     return merged_df
+
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import List
+
+
+def parallel_get_llm_fact_pattern_summaries(queries: List[str], max_workers: int = 5) -> List[FactSummary]:
+    """
+    Executes get_llm_fact_pattern_summary in parallel for a list of queries.
+
+    Args:
+        queries (List[str]): A list of queries to process.
+        max_workers (int): Maximum number of threads to use.
+
+    Returns:
+        List[FactSummary]: A list of FactSummary objects corresponding to each query.
+    """
+    summaries = [None] * len(queries)  # Pre-allocate list for results
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Create a future for each query
+        future_to_index = {executor.submit(get_llm_fact_pattern_summary, query): i for i, query in enumerate(queries)}
+
+        # As each future completes, store the result in the corresponding position
+        for future in as_completed(future_to_index):
+            index = future_to_index[future]
+            try:
+                summaries[index] = future.result()
+            except Exception as e:
+                print(f"Query at index {index} failed: {e}")
+                summaries[index] = str(e)  # Or handle the error as appropriate
+
+    return summaries
 
 
 # Create context for LLM prompt
@@ -259,6 +260,10 @@ class ResearchReport(BaseModel):
     source_documents: List[BaseModel] = Field(
         default_factory=list,
         description="A list of source documents used to generate the final answer.",
+    )
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        extra="allow",
     )
 
 def get_final_answer(formatted_input: str, model_name: str) -> ResearchReport:

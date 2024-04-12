@@ -35,7 +35,7 @@ from src.search.query_planning import (
 
 # Re-Ranking
 from src.embedding_models.models import ColbertReranker
-from src.search.rank_gpt import RankGPTRerank
+from src.search.rank_gpt import RankGPTRerank, get_default_llm
 from src.search.rerank_openai import generate_gpt_relevance
 
 # Filtering and Joining
@@ -43,6 +43,7 @@ from src.search.llm_filter import filter_chunks
 from src.search.doc_joiner import DocJoinerDF
 
 # Utilities
+from src.utils.pydantic_utils import dataframe_to_documents
 from src.utils.gen_utils import DataFrameCache
 from src.utils.settings import get_settings
 
@@ -202,9 +203,7 @@ class RAGPipeline:
                     query=subquery,
                     results=[
                         SearchResult(
-                            text=result.metadata["summary"]
-                            if step.use_summary
-                            else result.text,
+                            text=result.text,
                             score=result.score,
                         )
                         for result in search_results.results
@@ -212,24 +211,10 @@ class RAGPipeline:
                 ),
             )
             results_df = search_results_to_dataframe(rerank_request.search_results)
-            reranked = ColbertReranker(column='text').rerank(rerank_request.query, results_df)
-            search_result_list = [
-                SearchResult(
-                    text=row["text"],
-                    score=row["score"],
-                    metadata={
-                        "summary": next(
-                            (
-                                r.metadata["text"]
-                                for r in search_results.results
-                                if r.text == row["text"]
-                            ),
-                            None,
-                        )
-                    },
-                )
-                for _, row in reranked.iterrows()
-            ]
+            reranked_df = ColbertReranker(column='text').rerank(rerank_request.query, results_df)
+            search_result_list = dataframe_to_search_results(
+                df=reranked_df, metadata_fields=self.metadata_list
+            )
         elif step.step_type == "RankGPTRerank":
             rerank_request = RerankRequest(
                 query=subquery,
@@ -246,7 +231,8 @@ class RAGPipeline:
                     ],
                 ),
             )
-            reranked = RankGPTRerank().rerank(rerank_request)
+            llm = get_default_llm()
+            reranked = RankGPTRerank(llm=llm).postprocess_nodes(rerank_request)
             search_result_list = [
                 SearchResult(
                     text=result.text,
@@ -350,7 +336,7 @@ class RAGPipeline:
         research_report.source_documents = search_results.results
         return research_report
 
-    async def run(self, query: str, df: pd.DataFrame):
+    async def run(self, query: str):
         query_screening = screen_query(query)
         subqueries = generate_subquestions(
             query, str(min(query_screening.n_subquestions, self.max_subquestions))
@@ -386,22 +372,18 @@ pipeline = RAGPipeline(
         PipelineStep(step_type="BM25", top_k=5, kwargs={"df": df}),
         PipelineStep(step_type="FactPatternSummary"),
         PipelineStep(step_type="ColbertReranker", use_summary=False),
-        PipelineStep(step_type="RankGPTRerank", use_summary=False),
-        PipelineStep(step_type="GPTRelevance", use_summary=True),
-        PipelineStep(step_type="FilterChunks", use_summary=False),
     ],
     max_subquestions=2,
     model_name="gpt-4-turbo",
-    metadata_list=["name_abbreviation", "context_citation"],
 )
 
 
 async def main():
     df["text"] = df["context"]
     query = """
-    Regarding the pollution exclusion clause under the terms of comprehensive general liability (CGL) insurance, \
-    how has the California court defined the phrase 'sudden and accidental', in particular for polluting events? \
-    Also, has there been any consideration for intentional vs unintentional polluting events?
+Regarding the pollution exclusion clause under the terms of comprehensive general liability (CGL) insurance, \
+how has the California court defined the phrase 'sudden and accidental', in particular for polluting events? \
+Also, has there been any consideration for intentional vs unintentional polluting events?
     """
     logger.info(f"Test Query: {query}")
 

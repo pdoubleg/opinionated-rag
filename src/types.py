@@ -115,9 +115,9 @@ class DocMetaData(BaseModel):
     """Metadata for a document."""
 
     model_config = ConfigDict(
+        arbitrary_types_allowed=True,
         extra="allow",
     )
-    source: str | None = None
 
 
 class Document(LanceModel):
@@ -170,7 +170,7 @@ class Document(LanceModel):
         """
         text = self.content or None
         dataframe = self.dataframe.to_json() if self.dataframe is not None else None
-        metadata = self.metadata.model_dump() or {}
+        metadata = self.metadata.model_dump() if self.metadata is not None else None
         embedding = self.embedding if self.embedding is not None else None
         data = f"{text}{dataframe}{metadata}{embedding}"
         return hashlib.sha256(data.encode("utf-8")).hexdigest()
