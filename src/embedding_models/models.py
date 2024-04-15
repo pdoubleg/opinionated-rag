@@ -73,7 +73,7 @@ class ColbertReranker(Reranker):
         
         combined_results = (
             pd.concat([vector_results, fts_results])
-            .drop_duplicates()
+            .drop_duplicates(subset=[self.column])
             .reset_index(drop=True)
         )
         docs = combined_results[self.column].tolist()
@@ -97,11 +97,12 @@ class ColbertReranker(Reranker):
             scores.append(score.item())
 
         # Add the scores to the DataFrame
-        combined_results["_relevance_score"] = scores
+        combined_results["score"] = scores
 
         combined_results = combined_results.sort_values(
-            by="_relevance_score", ascending=False
+            by="score", ascending=False
         )
+        combined_results.reset_index(drop=True, inplace=True)
 
         return combined_results
     
@@ -146,10 +147,10 @@ class ColbertReranker(Reranker):
             scores.append(score.item())
 
         # Add the scores to the DataFrame
-        results_df["_relevance_score"] = scores
+        results_df["score"] = scores
 
         results_df = results_df.sort_values(
-            by="_relevance_score", ascending=False
+            by="score", ascending=False
         )
 
         return results_df

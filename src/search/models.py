@@ -1,7 +1,10 @@
 from dataclasses import dataclass, fields
 from datetime import datetime
 from enum import Enum
-from typing import Any, List, Literal, Optional, Sequence
+import hashlib
+from textwrap import dedent
+from typing import Any, List, Dict, Optional, Sequence
+import uuid
 import pandas as pd
 
 from pydantic import BaseModel, ConfigDict
@@ -33,8 +36,51 @@ MAX_METRICS_CONTENT = (
 
 Embedding = list[float]
 
-from typing import Optional, List
 from pydantic import BaseModel, Field
+
+
+class Filter(BaseModel):
+    where: Optional[Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="The attribute to filter on and the value to select.",
+    )
+    name: str = Field(default="Filter", description="A display name for the filter.")
+
+    @property
+    def off(self):
+        return None
+
+    @property
+    def display_filter(self) -> str:
+        if self.where is not None:
+            first_key, first_value = next(iter(self.where.items()))
+            s = f"Search Criteria: {first_key.replace('_', ' ').title()} = {first_value}"
+        else:
+            s = "Search Criteria: All States"
+        return s
+
+    @property
+    def filter_key(self) -> str:
+        if self.where is not None:
+            k, _ = next(iter(self.where.items()))
+        else:
+            k = ""
+        return k
+
+    @property
+    def filter_value(self) -> str:
+        if self.where is not None:
+            _, v = next(iter(self.where.items()))
+        else:
+            v = ""
+        return v
+
+
+class SearchType(str, Enum):
+    KEYWORD = "keyword"
+    SEMANTIC = "semantic"
+    HYBRID = "hybrid"
+    SPLADE = "splade"
 
 
 class QueryScreening(BaseModel):
@@ -52,13 +98,14 @@ class QueryScreening(BaseModel):
         default=0,
         description="The number of distinct sub-questions that the user query naturally breaks down to, or `0` if the original user query is already atomic.",
     )
-    
+
 
 class BaseFilter(BaseModel):
     """A key value pair search filter."""
+
     chain_of_thought: str = Field(
-        description="Reasoning behind the filter selection with respect to its role in answering the primary question.", 
-        exclude=True
+        description="Reasoning behind the filter selection with respect to its role in answering the primary question.",
+        exclude=True,
     )
     filter_key: str = Field(
         ...,
@@ -68,22 +115,12 @@ class BaseFilter(BaseModel):
         ...,
         description="A value from a pandas Series to select for filtering",
     )
-    
+
     @property
     def filter_dict(self):
         return {self.filter_key: self.filter_value}
 
-# class SearchFilters(BaseModel):
-#     """A list of key value pair search filters."""
 
-#     chain_of_thought: str = Field(
-#         description="Reasoning behind the filter selection with respect to its role in answering the primary question.", 
-#         exclude=True
-#     )
-#     search_filters = Sequence[BaseFilter] = Field(
-#         ...,
-#         description="A list of key value pair filters used to limit a search space to the area of interest.",
-#     )
 
 class CitationInformation(BaseModel):
     """Generalized information about a legal citation."""
@@ -398,20 +435,27 @@ class RecencyBiasSetting(str, Enum):
     AUTO = "auto"
 
 
-class SearchType(str, Enum):
-    KEYWORD = "keyword"
-    SEMANTIC = "semantic"
-    HYBRID = "hybrid"
-
 
 class QueryFlow(str, Enum):
     SEARCH = "search"
     QUESTION_ANSWER = "question-answer"
 
 
+class SubQuestionList(BaseModel):
+    """List of sub-questions related to a high level question"""
+
+    questions: List[str] = Field(
+        description="Sub-questions related to the main question."
+    )
+
+
 class Tag(BaseModel):
     tag_key: str
-    tag_value: str
+    tag_value: Any
+
+    @property
+    def filter_dict(self):
+        return {self.tag_key: self.tag_value}
 
 
 class BaseFilters(BaseModel):
@@ -426,9 +470,8 @@ class IndexFilters(BaseFilters):
 
 class ChunkMetric(BaseModel):
     document_id: str
-    chunk_content_start: str
-    first_link: str | None
     score: float
+    rank: int
 
 
 class SearchQuery(BaseModel):
@@ -437,12 +480,11 @@ class SearchQuery(BaseModel):
     num_hits: int = 25
     search_type: SearchType = SearchType.HYBRID
     rerank: bool = False
-    # Only used if rerank
     num_rerank: int | None = 10
     llm_chunk_filter: bool = False
-    # Only used if not skip_llm_chunk_filter
     max_llm_filter_chunks: int = 10
-    subquestions: List[str] | None = None
+    subquestions: List[str] | SubQuestionList | None = None
+    query_eval: QueryScreening | None = None
 
     model_config = ConfigDict(
         frozen=True,
@@ -452,17 +494,20 @@ class SearchQuery(BaseModel):
 
 class SearchRequest(BaseModel):
     """Input to the SearchPipeline."""
+
     query: str
     search_type: SearchType = SearchType.HYBRID
     human_selected_filters: BaseFilters | None = None
     enable_auto_detect_filters: bool | None = None
-    recency_bias_multiplier: float = 1.0
+    enable_query_screening: bool | None = None
+    enable_auto_subquestions: bool | None = None
     hybrid_alpha: float = HYBRID_ALPHA
-    # This is to forcibly skip (or run) the step, if None it uses the system defaults
-    skip_rerank: bool | None = None
-    skip_llm_chunk_filter: bool | None = None
+    rerank: bool | None = None
+    llm_chunk_filter: bool | None = None
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+    )
 
 
 class RetrievalDetails(BaseModel):
@@ -497,7 +542,6 @@ class SavedSearchDoc(SearchDoc):
     def from_search_doc(
         cls, search_doc: SearchDoc, db_doc_id: int = 0
     ) -> "SavedSearchDoc":
-        """IMPORTANT: careful using this and not providing a db_doc_id"""
         search_doc_data = search_doc.dict()
         search_doc_data["score"] = search_doc_data.get("score", 0.0)
         return cls(**search_doc_data, db_doc_id=db_doc_id)
@@ -511,9 +555,15 @@ class SearchResponse(RetrievalDocs):
     llm_indices: list[int]
 
 
+class ChunkMetric(BaseModel):
+    source: str
+    document_id: str
+    score: float
+    rank: int
+
 class RetrievalMetricsContainer(BaseModel):
     search_type: SearchType
-    metrics: list[ChunkMetric]  # This contains the scores for retrieval as well
+    metrics: list[ChunkMetric]
 
 
 class RerankMetricsContainer(BaseModel):
@@ -521,3 +571,63 @@ class RerankMetricsContainer(BaseModel):
 
     metrics: list[ChunkMetric]
     raw_similarity_scores: list[float]
+
+
+class DocMetaData(BaseModel):
+    """Metadata for a document."""
+
+    source: str = "context"
+    id: str = ""  # unique id for the document
+
+    model_config = ConfigDict(
+        extra='allow',
+        arbitrary_types_allowed=True,
+    )
+
+
+class Document(BaseModel):
+    """Interface for interacting with a document."""
+
+    content: str
+    metadata: DocMetaData
+
+    @staticmethod
+    def hash_id(doc: str) -> str:
+        # Encode the document as UTF-8
+        doc_utf8 = str(doc).encode("utf-8")
+
+        # Create a SHA256 hash object
+        sha256_hash = hashlib.sha256()
+
+        # Update the hash object with the bytes of the document
+        sha256_hash.update(doc_utf8)
+
+        # Get the hexadecimal representation of the hash
+        hash_hex = sha256_hash.hexdigest()
+
+        # Convert the first part of the hash to a UUID
+        hash_uuid = uuid.UUID(hash_hex[:32])
+
+        return str(hash_uuid)
+
+    def _unique_hash_id(self) -> str:
+        return self.hash_id(str(self))
+
+    def id(self) -> str:
+        if (
+            hasattr(self.metadata, "id")
+            and self.metadata.id is not None
+            and self.metadata.id != ""
+        ):
+            return self.metadata.id
+        else:
+            return self._unique_hash_id()
+
+    def __str__(self) -> str:
+        self.metadata.model_dump()
+        return dedent(
+            f"""
+        CONTENT: {self.content}         
+        SOURCE:{self.metadata.source}
+        """
+        )

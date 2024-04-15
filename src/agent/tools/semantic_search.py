@@ -1,71 +1,49 @@
 import asyncio
-import os
 from dotenv import load_dotenv
 import numpy as np
 from openai import AsyncOpenAI, OpenAI
 import pandas as pd
 import faiss
-from typing import Dict, List, Tuple, Optional, Any
+from typing import List, Tuple, Optional
 
-from pydantic import BaseModel, Field
-
+from src.search.base import SearchEngineConfig, SearchEngine, SearchType
+from src.search.models import SearchType, Filter
 from src.utils.logging import setup_colored_logging
 
 logger = setup_colored_logging(__name__)
 
-class Filter(BaseModel):
-    where: Optional[Dict[str, Any]] = Field(
-        default_factory=dict,
-        description="The attribute to filter on and the value to select.",
-    )
-    name: str = Field(
-        default="Filter", 
-        description="A display name for the filter.")
+DATA_PATH = "data/splade.parquet"
 
-    @property
-    def off(self):
-        return None
+class SemanticSearchConfig(SearchEngineConfig):
+    type: SearchType = SearchType.SEMANTIC
+    data_path: str = DATA_PATH
+    text_column: str = "context"
+    embedding_column: str = "openai_embeddings"
 
-    @property
-    def display_filter(self) -> str:
-        if self.where is not None:
-            first_key, first_value = next(iter(self.where.items()))
-            s = f"Search Criteria: {first_key.replace('_', ' ').title()} = {first_value}"
-        else:
-            s = "Search Criteria: All States"
-        return s
 
-    @property
-    def filter_key(self) -> str:
-        if self.where is not None:
-            k, _ = next(iter(self.where.items()))
-        else:
-            k = ""
-        return k
+class SemanticSearchEngine(SearchEngine):
+    def __init__(self, config: SemanticSearchConfig = SemanticSearchConfig()):
+        super().__init__(config)
+        self.config: SemanticSearchConfig = config
 
-    @property
-    def filter_value(self) -> str:
-        if self.where is not None:
-            _, v = next(iter(self.where.items()))
-        else:
-            v = ""
-        return v
-    
 
 class SemanticSearch:
-    def __init__(self, df: pd.DataFrame, embedding_column: str = "embeddings", text_column: str = "text"):
+    def __init__(
+        self,
+        df: pd.DataFrame,
+        embedding_column: str = "embeddings",
+        text_column: str = "text",
+    ):
         self.df = df
         self.embedding_column = embedding_column
         self.text_column = text_column
-        self.model_name="text-embedding-ada-002"
+        self.model_name = "text-embedding-ada-002"
         load_dotenv()
         self.aclient = AsyncOpenAI()
         self.client = OpenAI()
-        
+
     def get_embedding(self, text: str):
-        response = self.client.embeddings.create(
-            input=text, model=self.model_name
-        )
+        response = self.client.embeddings.create(input=text, model=self.model_name)
         return response.data[0].embedding
 
     async def aget_embedding(self, text: str):
@@ -73,17 +51,17 @@ class SemanticSearch:
             input=text, model=self.model_name
         )
         return response.data[0].embedding
-    
-    
+
     def get_embedding_df(self, df: pd.DataFrame) -> List[np.ndarray]:
-        embeddings = [self.encode_string(row[self.text_column]) for _, row in df.iterrows()]
+        embeddings = [
+            self.encode_string(row[self.text_column]) for _, row in df.iterrows()
+        ]
         return embeddings
 
     async def aget_embedding_df(self, df: pd.DataFrame):
         tasks = [self.aget_embedding(row[self.text_column]) for _, row in df.iterrows()]
         return await asyncio.gather(*tasks)
 
-   
     async def aencode_string(self, text: str) -> np.ndarray:
         embedding = await self.aget_embedding(text)
         return np.array(embedding)
@@ -134,7 +112,7 @@ class SemanticSearch:
         use_cosine_similarity: bool,
         similarity_threshold: float,
     ) -> Tuple[List[int], np.ndarray]:
-        # Get extras since we deduplicate before returning 
+        # Get extras since we deduplicate before returning
         distances, indices = index.search(
             embedding.reshape(1, -1).astype("float32"), 2 * top_k
         )
@@ -149,7 +127,6 @@ class SemanticSearch:
         similarity_scores = similarity_scores[similarity_scores < similarity_threshold]
 
         return indices[:top_k], similarity_scores[:top_k]
-
 
     async def aquery_similar_documents(
         self,
@@ -179,13 +156,12 @@ class SemanticSearch:
         results_df = filtered_df.iloc[indices].copy()
         results_df["search_type"] = "vector"
         results_df["score"] = sim_scores
-        results_df.drop_duplicates(subset=[self.text_column], keep='first', inplace=True)
-        ranked_df = results_df.sort_values(
-            by="score", ascending=False
-        ).head(top_k)
+        results_df.drop_duplicates(
+            subset=[self.text_column], keep="first", inplace=True
+        )
+        ranked_df = results_df.sort_values(by="score", ascending=False).head(top_k)
         return ranked_df
-    
-    
+
     def query_similar_documents(
         self,
         query: str,
@@ -214,8 +190,8 @@ class SemanticSearch:
         results_df = filtered_df.iloc[indices].copy()
         results_df["search_type"] = "vector"
         results_df["score"] = sim_scores
-        results_df.drop_duplicates(subset=[self.text_column], keep='first', inplace=True)
-        ranked_df = results_df.sort_values(
-            by="score", ascending=False
-        ).head(top_k)
+        results_df.drop_duplicates(
+            subset=[self.text_column], keep="first", inplace=True
+        )
+        ranked_df = results_df.sort_values(by="score", ascending=False).head(top_k)
         return ranked_df

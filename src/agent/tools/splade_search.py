@@ -1,3 +1,5 @@
+import asyncio
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
@@ -5,14 +7,34 @@ from transformers import AutoTokenizer, AutoModelForMaskedLM
 from typing import List, Optional
 from tqdm import tqdm
 
-from src.agent.tools.semantic_search import Filter
+from src.search.models import SearchType, Filter
+from src.search.base import SearchEngine, SearchEngineConfig, SearchType
 from src.utils.logging import setup_colored_logging
 
 logger = setup_colored_logging(__name__)
 
-class SparseEmbeddingsSplade:
+
+DATA_PATH = "data/splade.parquet"
+
+class SPLADESearchConfig(SearchEngineConfig):
+    type: SearchType = SearchType.SPLADE
+    data_path: str = DATA_PATH
+    text_column: str = "context"
+    embedding_column: str = "splade_embeddings"
+
+
+class SPLADESparseSearchEngine(SearchEngine):
+    def __init__(self, config: SPLADESearchConfig = SPLADESearchConfig()):
+        super().__init__(config)
+        self.config: SPLADESearchConfig = config
+
+
+class SPLADESparseSearch:
     def __init__(
-        self, df: pd.DataFrame, text_column: str, embedding_column: str = "splade_embeddings"
+        self,
+        df: pd.DataFrame,
+        text_column: str,
+        embedding_column: str = "splade_embeddings",
     ):
         """
         Initializes the SparseEmbeddingsSplade class with a DataFrame, a text column, and optionally an embedding column.
@@ -33,9 +55,13 @@ class SparseEmbeddingsSplade:
         if self.embedding_column not in self.df.columns:
             logger.info("Generating sparse (SPLADE) embeddings...")
             self.df = self.add_splade_embeddings_to_df()
-            logger.info(f"Done! Embeddings have been saved to self.df['{embedding_column}']")
+            logger.info(
+                f"Done! Embeddings have been saved to self.df['{embedding_column}']"
+            )
         else:
-            logger.info(f"Using pre-computed '{self.text_column}' embeddings from existing column: {self.embedding_column}")
+            logger.info(
+                f"Using pre-computed '{self.text_column}' embeddings from existing column: {self.embedding_column}"
+            )
 
     def splade_embed_documents(self, docs: List[str]) -> List[np.ndarray]:
         """
@@ -94,7 +120,7 @@ class SparseEmbeddingsSplade:
             .numpy()
         )
         return query_embedding
-    
+
     @staticmethod
     def sigmoid_similarity(scores: List[float]) -> List[float]:
         """
@@ -108,10 +134,9 @@ class SparseEmbeddingsSplade:
         """
         return [1 / (1 + np.exp(-score)) for score in scores]
 
-
     @staticmethod
     def dot_product_similarity(
-        doc_embeddings: np.ndarray, 
+        doc_embeddings: np.ndarray,
         query_embedding: np.ndarray,
     ) -> List[float]:
         """
@@ -144,9 +169,9 @@ class SparseEmbeddingsSplade:
         return self.df
 
     def query_similar_documents(
-        self, 
-        query: str, 
-        top_k: int = 20, 
+        self,
+        query: str,
+        top_k: int = 20,
         filter_criteria: dict | Filter | None = None,
         norm_score: bool = False,
     ) -> pd.DataFrame:
@@ -175,13 +200,62 @@ class SparseEmbeddingsSplade:
         similarities = self.dot_product_similarity(document_embeddings, query_embedding)
         if norm_score:
             similarities = self.sigmoid_similarity(similarities)
-            
+
         filtered_df["score"] = similarities
-        filtered_df.drop_duplicates(subset=[self.text_column], keep='first', inplace=True)
+        filtered_df.drop_duplicates(
+            subset=[self.text_column], keep="first", inplace=True
+        )
         filtered_df["search_type"] = "splade"
-        ranked_df = filtered_df.sort_values(
-            by="score", ascending=False
-        ).head(top_k)
+        ranked_df = filtered_df.sort_values(by="score", ascending=False).head(top_k)
+        return ranked_df
+    
+    async def aquery_similar_documents(
+        self,
+        query: str,
+        top_k: int = 20,
+        filter_criteria: dict | Filter | None = None,
+        norm_score: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Asynchronously search documents based on the similarity of their embeddings to the query embedding.
+
+        Args:
+            query (str): The query to search for.
+            top_k (int): The number of top documents to return.
+            filter_criteria (optional, dict): A dictionary of key (column names) value pairs to filter the df.
+
+        Returns:
+            pd.DataFrame: A dataframe containing the top_k documents and their similarity scores, sorted by similarity.
+        """
+        if filter_criteria is not None:
+            filtered_df = self.df.copy()
+            if isinstance(filter_criteria, Filter):
+                filter_criteria = filter_criteria.where
+            for key, value in filter_criteria.items():
+                filtered_df = filtered_df[filtered_df[key] == value]
+        else:
+            filtered_df = self.df.copy()
+
+        query_embedding = await asyncio.to_thread(self.splade_embed_query, query)
+        document_embeddings = filtered_df[self.embedding_column].tolist()
+        
+        async def async_dot_product_similarity(doc_embeddings, query_embedding):
+            return await asyncio.to_thread(self.dot_product_similarity, doc_embeddings, query_embedding)
+        
+        similarities = await async_dot_product_similarity(document_embeddings, query_embedding)
+        
+        if norm_score:
+            async def async_sigmoid_similarity(scores):
+                return await asyncio.to_thread(self.sigmoid_similarity, scores)
+            
+            similarities = await async_sigmoid_similarity(similarities)
+
+        filtered_df["score"] = similarities
+        filtered_df.drop_duplicates(
+            subset=[self.text_column], keep="first", inplace=True
+        )
+        filtered_df["search_type"] = "splade"
+        ranked_df = filtered_df.sort_values(by="score", ascending=False).head(top_k)
         return ranked_df
 
     def generate_expansion_terms(self, input_string: str) -> list:
@@ -209,20 +283,20 @@ class SparseEmbeddingsSplade:
 
         cols = query_embedding.nonzero().squeeze().cpu().tolist()
         weights = query_embedding[cols].cpu().tolist()
-        sparce_dict = dict(zip(cols, weights))
-        # map token IDs to readable tokens
-        sparce_dict_tokens = {
+        sparse_dict = dict(zip(cols, weights))
+        # map sparse_dict_tokens IDs to readable tokens
+        sparse_dict_tokens = {
             idx2token[idx]: round(weight, 2) for idx, weight in zip(cols, weights)
         }
         # sort to most relevant tokens first
-        sparce_dict_tokens = {
+        sparse_dict_tokens = {
             k: v
             for k, v in sorted(
-                sparce_dict_tokens.items(), key=lambda item: item[1], reverse=True
+                sparse_dict_tokens.items(), key=lambda item: item[1], reverse=True
             )
         }
-        sparce_dict_tokens = self.strip_hash_from_dict_keys(sparce_dict_tokens)
-        filtered_keys = self.filter_dict_by_string(sparce_dict_tokens, input_string)
+        sparse_dict_tokens = self.strip_hash_from_dict_keys(sparse_dict_tokens)
+        filtered_keys = self.filter_dict_by_string(sparse_dict_tokens, input_string)
 
         print(f"SPLADE generated {len(filtered_keys)} expansion terms")
         print(f"Top expansion terms: {filtered_keys[:10]}")
@@ -237,4 +311,3 @@ class SparseEmbeddingsSplade:
     def filter_dict_by_string(input_dict: dict, input_string: str) -> list:
         """Helper to filter out tokens that appear in the input string"""
         return [key for key in input_dict if key.lower() not in input_string.lower()]
-

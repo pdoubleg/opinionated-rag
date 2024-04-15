@@ -13,7 +13,7 @@ import numpy as np
 from textwrap import fill
 
 from src.agent.tools.semantic_search import SemanticSearch
-from src.agent.tools.splade_search import SparseEmbeddingsSplade
+from src.agent.tools.splade_search import SPLADESparseSearch
 
 
 class SubQuestionList(BaseModel):
@@ -61,7 +61,7 @@ def generate_subquestions(query: str, n: str = "2 to 3") -> SubQuestionList:
 # }
 # df.rename(columns=snake_case_columns, inplace=True)
 
-# splade_search = SparseEmbeddingsSplade(
+# splade_search = SPLADESparseSearch(
 #     df=df,
 #     text_column="body",
 #     splade_column="splade_embeddings",
@@ -88,7 +88,7 @@ from pydantic import Field, BaseModel
 from tenacity import Retrying, stop_after_attempt, wait_fixed
 
 from src.agent.tools.semantic_search import SemanticSearch
-from src.agent.tools.splade_search import SparseEmbeddingsSplade
+from src.agent.tools.splade_search import SPLADESparseSearch
 from src.utils.logging import setup_colored_logging
 
 logger = setup_colored_logging(__name__)
@@ -157,7 +157,7 @@ class SubQuestion(BaseModel):
     )
 
     def execute(
-        self, semantic_search: SemanticSearch, splade_search: SparseEmbeddingsSplade
+        self, semantic_search: SemanticSearch, splade_search: SPLADESparseSearch
     ) -> pd.DataFrame:
         """
         Executes both vector and keyword searches based on the sub-question query and keywords.
@@ -211,7 +211,7 @@ class MultiSearch(BaseModel):
     )
 
     def execute(
-        self, semantic_search: SemanticSearch, splade_search: SparseEmbeddingsSplade
+        self, semantic_search: SemanticSearch, splade_search: SPLADESparseSearch
     ) -> pd.DataFrame:
         """Helper method to run and combine vector &/or splade searches."""
         vector_results = []
