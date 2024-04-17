@@ -163,7 +163,6 @@ class RankGPTRerank(BaseNodePostprocessor):
             content = hit["content"]
             content = content.replace("Title: Content: ", "")
             content = content.strip()
-            # For Japanese should cut by character: content = content[:int(max_length)]
             content = " ".join(content.split()[:300])
             messages.append(ChatMessage(role="user", content=f"[{rank}] {content}"))
             messages.append(

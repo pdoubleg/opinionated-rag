@@ -26,15 +26,49 @@ class ResolvedImprovedEntities(BaseModel):
 
 
 class MatchedEntitySearch:
-    """A class to handle entity search functionality."""
+    """
+    A class to handle entity search functionality. It extracts entities from the query and filters 
+    results such that each will have at least one entity match. Results are sorted by count of
+    matched entities followed by 'similarity'.
+
+    The class provides methods for ingesting data, extracting named entities,
+    resolving and refining entities using an LLM, and performing searches based on queries and
+    extracted entities. It leverages a pre-trained named entity recognition (NER) model and
+    integrates with a LanceDB database for storage and retrieval of data.
+
+    Example usage:
+        >>> search = MatchedEntitySearch(db_path="./.lancedb")
+        >>> search.ingest_data(df, table_name="context", mode='overwrite')
+        >>> query = "What is the capital of France?"
+        >>> search_results = search.search(query, limit=100)
+    """
 
     def __init__(self, db_path: str, model_id: str = "dslim/bert-base-NER"):
         """
-        Initialize the EntitySearch instance.
+        Initialize the MatchedEntitySearch instance.
+
+        This method sets up the necessary components for entity search functionality:
+        - Initializes the device (GPU if available, else CPU)
+        - Loads the tokenizer and model for named entity recognition (NER) using the specified model ID
+        - Creates an NER pipeline using the loaded model and tokenizer
+        - Connects to the LanceDB database using the provided database path
+        - Initializes the table attribute to None
 
         Args:
-            db_path (str): The path to the LanceDB database.
-            model_id (str): The ID of the pre-trained model to use for named entity recognition.
+            db_path (str): The path to the LanceDB database file.
+            model_id (str, optional): The ID of the pre-trained model to use for named entity recognition.
+                Defaults to "dslim/bert-base-NER".
+
+        Attributes:
+            device (torch.device): The device to use for computations (GPU if available, else CPU).
+            tokenizer (AutoTokenizer): The tokenizer for the NER model.
+            model (AutoModelForTokenClassification): The pre-trained model for named entity recognition.
+            nlp (pipeline): The NER pipeline created using the loaded model and tokenizer.
+            db (lancedb.LanceDB): The LanceDB database connection.
+            tbl (lancedb.Table): The table attribute, initially set to None.
+
+        Example:
+            >>> search = MatchedEntitySearch(db_path="./.lancedb")
         """
         self.device = torch.cuda.current_device() if torch.cuda.is_available() else None
         warnings.filterwarnings("ignore", category=UserWarning)

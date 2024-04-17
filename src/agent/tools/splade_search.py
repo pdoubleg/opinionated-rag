@@ -17,6 +17,8 @@ logger = setup_colored_logging(__name__)
 DATA_PATH = "data/splade.parquet"
 
 class SPLADESearchConfig(SearchEngineConfig):
+    """Configuration for SPLADE search engine."""
+    
     type: SearchType = SearchType.SPLADE
     data_path: str = DATA_PATH
     text_column: str = "context"
@@ -24,7 +26,23 @@ class SPLADESearchConfig(SearchEngineConfig):
 
 
 class SPLADESparseSearchEngine(SearchEngine):
+    """SPLADE sparse embeddings based search engine."""
+    
     def __init__(self, config: SPLADESearchConfig = SPLADESearchConfig()):
+        """
+        Initialize the SPLADE sparse embedding search engine.
+
+        Args:
+            config: Configuration for the sparse embedding search engine.
+            
+        Example:
+            >>> config = SPLADESearchConfig(
+            >>>     data_path=DATA_PATH,
+            >>>     text_column=TEXT_COLUMN,
+            >>> )
+            >>> search_engine = SPLADESparseSearchEngine.create(config)
+            >>> results = search_engine.query_similar_documents(query, top_k=5)
+        """
         super().__init__(config)
         self.config: SPLADESearchConfig = config
 
@@ -44,6 +62,7 @@ class SPLADESparseSearch:
             df (pd.DataFrame): The DataFrame containing the documents.
             text_column (str): The name of the column in the DataFrame containing the text to embed.
             embedding_column (Optional[str]): The name of the column in the DataFrame containing pre-computed embeddings.
+            
         """
         self.df = df
         self.text_column = text_column
@@ -154,14 +173,10 @@ class SPLADESparseSearch:
 
     def add_splade_embeddings_to_df(self) -> pd.DataFrame:
         """
-        Adds a new column to the dataframe with sparse embeddings of the text column.
-
-        Args:
-            df (pd.DataFrame): Dataframe to be processed.
-            text_column (str): Name of the column in df which contains the text to be embedded.
+        Adds a new column "splade_embeddings" to the dataframe with sparse embeddings of the text in the column specified by self.text_column.
 
         Returns:
-            pd.DataFrame: Dataframe with the new column of splade embeddings.
+            pd.DataFrame: The updated dataframe with the new "splade_embeddings" column.
         """
         self.df["splade_embeddings"] = self.splade_embed_documents(
             self.df[self.text_column].tolist()

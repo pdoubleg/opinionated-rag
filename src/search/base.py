@@ -15,6 +15,7 @@ logger = setup_colored_logging(__name__)
 
 
 class SearchType(str, Enum):
+    """Enum representing different types of search engines."""
     KEYWORD = "keyword"
     SEMANTIC = "semantic"
     HYBRID = "hybrid"
@@ -22,6 +23,14 @@ class SearchType(str, Enum):
 
 
 class SearchEngineConfig(BaseSettings):
+    """Configuration class for search engines.
+
+    Attributes:
+        type (SearchType): The type of search engine.
+        data_path (Optional[Path]): Path to the data file.
+        text_column (Optional[str]): Name of the text column in the data.
+        embedding_column (Optional[str]): Name of the embedding column in the data.
+    """
     type: SearchType
     data_path: Path | None = None
     text_column: str | None = None
@@ -29,26 +38,34 @@ class SearchEngineConfig(BaseSettings):
     
     
 class SearchEngineBase(ABC):
+    """Abstract base class for search engines."""
     
     @abstractmethod
     def create(config: SearchEngineConfig):
+
         pass
     
     @abstractmethod
     def query_similar_documents(query: str) -> pd.DataFrame:
+        
         pass
 
 
 class SearchEngine(SearchEngineBase):
-    """
-    Abstract factory class for creating search engines.
+    """Abstract factory class for creating search engines.
 
-    This class follows the Dependency Inversion Principle, which makes code more loosely coupled and easier 
-    to test and maintain, as we can swap out different search engine implementations without affecting code 
-    that uses the SearchEngine factory to create objects.
-    
-    To add a new search engine, create a config file subclassing SearchEngineConfig and use it to set up 
-    the object below. Optionally, add the name of your search engine to the SearchType enum.
+    This class follows the Dependency Inversion Principle, which promotes loose coupling and easier
+    testability and maintainability. It allows swapping out different search engine implementations
+    without affecting the code that uses the SearchEngine factory to create objects.
+
+    To add a new search engine:
+    1. Create a configuration class subclassing SearchEngineConfig.
+    2. Implement the specific search engine class inheriting from SearchEngineBase.
+    3. Update the create() method in this class to handle the new search engine type.
+    4. Optionally, add the name of your search engine to the SearchType enum.
+
+    Attributes:
+        config (SearchEngineConfig): Configuration for the search engine.
     """
 
     def __init__(self, config: SearchEngineConfig):
@@ -56,6 +73,14 @@ class SearchEngine(SearchEngineBase):
 
     @staticmethod
     def create(config: SearchEngineConfig) -> Optional["SearchEngine"]:
+        """Create a new instance of the search engine based on the provided configuration.
+
+        Args:
+            config (SearchEngineConfig): Configuration for the search engine.
+
+        Returns:
+            Optional[SearchEngine]: The created search engine instance, or None if not supported.
+        """
         from src.agent.tools.semantic_search import SemanticSearch
         from src.agent.tools.splade_search import SPLADESparseSearch
         from src.agent.tools.hybrid_search import HybridSearch

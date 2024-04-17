@@ -35,6 +35,9 @@ class FTSSearch:
         df (pd.DataFrame): Input DataFrame containing the documents.
         embedding_column (str): Name of the column containing the embeddings.
         text_column (str): Name of the column containing the text data.
+
+    Raises:
+        ValueError: If the specified embedding_column is not present in the DataFrame.
     """
     def __init__(
         self,
@@ -42,6 +45,8 @@ class FTSSearch:
         embedding_column: str,
         text_column: str,
     ) -> None:
+        if embedding_column not in df.columns:
+            raise ValueError(f"Embedding column '{embedding_column}' not found in the DataFrame.")
         self._df = df
         self.embedding_column = embedding_column
         self.text_column = text_column
@@ -49,6 +54,12 @@ class FTSSearch:
 
     @property
     def df(self) -> pd.DataFrame:
+        """
+        Returns the DataFrame with the embedding column renamed to 'vector'.
+
+        Returns:
+            pd.DataFrame: The modified DataFrame.
+        """
         df = self._df.rename(columns={self.embedding_column: "vector"})
         return df
 
@@ -68,6 +79,10 @@ class FTSSearch:
 
         Returns:
             pd.DataFrame: DataFrame containing the top similar documents.
+
+        Example:
+            >>> fts_search = FTSSearch(df, "embeddings", "text")
+            >>> results = fts_search.query_similar_documents("example query", top_k=10)
         """
         db = lancedb.connect(self.uri)
         cols = self.df.columns.tolist()

@@ -1,18 +1,31 @@
+
+import streamlit as st
+import streamlit_shadcn_ui as ui
+from streamlit_extras.add_vertical_space import add_vertical_space as avs
+import os
 import base64
 from datetime import datetime
+import hashlib
+from pathlib import Path
 import re
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from urllib.parse import urlparse
+import numpy as np
 import openai
+from pydantic import BaseModel, ConfigDict, HttpUrl, model_validator
 import requests
-import streamlit as st
-import os
+from PIL import Image
 from dotenv import load_dotenv
 from langchain_openai.llms import OpenAI
 from langchain.agents import load_tools, initialize_agent, AgentType
 from openai.types.images_response import ImagesResponse
 
 load_dotenv()
+
+# ------------------ utility functions ------------------
+
+def celsius_to_fahrenheit(temp_celsius: float) -> float:
+    return (temp_celsius * 9/5) + 32
 
 def safe_get(data, dot_chained_keys):
     """
@@ -63,32 +76,208 @@ def encode_image_to_base64(image_path: str) -> str:
     """
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode("utf-8")
+    
+def thumbnail(image, scale=3):
+    return image.resize(np.array(image.size)//scale)
+
+def hash_text(text: str) -> str:
+    return hashlib.md5(text.encode()).hexdigest()    
+    
+# ------------------ pydantic models ------------------
+
+
+class WeatherData(BaseModel):
+    temp: float
+    temp_max: float
+    temp_min: float
+    feels_like: float
+    description: str
+    icon: str
+    wind_speed: float
+    wind_direction: int
+    humidity: int
+    rain: str
+    cloud_cover: int
+    sunset_local: str
+    city_name: str
+    date_stamp: str
+
+    def __str__(self):
+        return (
+            f"{self.date_stamp}\n"
+            f"In {self.city_name}, the weather is currently:\n"
+            f"Status: {self.description.title()}\n"
+            f"Wind speed: {self.wind_speed} m/s, direction: {self.wind_direction}°\n"
+            f"Humidity: {self.humidity}%\n"
+            f"Temperature: \n"
+            f"  - Current: {self.temp}°F\n"
+            f"  - High: {self.temp_max}°F\n"
+            f"  - Low: {self.temp_min}°F\n"
+            f"  - Feels like: {self.feels_like}°F\n"
+            f"Rain: {self.rain if self.rain else 'No rain'}\n"
+            f"Cloud cover: {self.cloud_cover}%"
+        )
+    
+    @property
+    def to_markdown(self):
+        return (
+            f"{self.date_stamp}\n\n"
+            f"The weather in **{self.city_name}** is currently:\n\n"
+            f"Status: {self.description.title()}\n\n"
+            f"Wind speed: {self.wind_speed} m/s, direction: {self.wind_direction}°\n\n"
+            f"Humidity: {self.humidity}%\n\n"
+            f"Temperature: \n\n"
+            f"  - Current: {self.temp}°F\n"
+            f"  - High: {self.temp_max}°F\n"
+            f"  - Low: {self.temp_min}°F\n"
+            f"  - Feels like: {self.feels_like}°F\n\n"
+            f"Rain: {self.rain if self.rain else 'No rain'}\n\n"
+            f"Cloud cover: {self.cloud_cover}%"
+        )
+
+class TheWeather(BaseModel):
+    model_config = ConfigDict(
+        extra='allow'
+    )
+    image_url: HttpUrl
+    query: Optional[str] = None
+    timestamp: Optional[datetime | str] = None
+    hash_id: Optional[str] = None
+    
+    @model_validator(mode="before")
+    def generate_hash(cls, values):
+        unique_string = str(values["ebay_id"])+str(values["image_url"])
+        values['hash_id'] = hash_text(unique_string)
+        return values
+    
+    @model_validator(mode="before")
+    def generate_tiemstamp(cls, values):
+        timestamp = datetime.now()
+        values['timestamp'] = timestamp.isoformat(timespec='minutes')
+        return values
+    
+    @property
+    def filename(self):
+        filename = re.sub(
+            r'[\\/*?:"<>|]', "", str(self.item.title)
+        )  # Remove invalid file name characters
+        filename = re.sub(r"\s+", "_", filename)  # Replace spaces with underscores
+        filename += ".jpg"  # Append file extension
+        return filename
+
+    @property
+    def full_path(self):
+        folder_path: str = "./data/theweatherapp"
+        # Ensure the folder exists
+        Path(folder_path).mkdir(parents=True, exist_ok=True)
+        # Combine folder path and filename
+        file_path = Path(folder_path) / self.filename
+        return file_path
+    
+    @property
+    def image(self) -> Image.Image:
+        if not Path(self.full_path).exists():
+            self.download_image()
+        return Image.open(self.full_path)
+
+    def download_image(
+        self,
+        folder_path: str = "./data/theweatherapp",
+    ) -> None:
+        """
+        Downloads an image from a given URL and saves it to a specified folder with a filename
+        based on the cleaned title attribute.
+
+        Args:
+            folder_path (str): The path to the folder where the image will be saved.
+
+        Returns:
+            None
+        """
+        # Ensure the folder exists
+        Path(folder_path).mkdir(parents=True, exist_ok=True)
+
+        # Combine folder path and filename
+        file_path = Path(folder_path) / self.filename
+
+        # Download and save the image
+        response = requests.get(self.item.image_url)
+        if response.status_code == 200:
+            with open(file_path, "wb") as f:
+                f.write(response.content)
+        else:
+            print(f"Failed to download image from {self.image_url}")
 
 
 # ------------------ content generators ------------------
+
+def fetch_weather(search_query: str, search_type: str = "city") -> WeatherData:
+    API_key = os.getenv("OPENWEATHERMAP_API_KEY")
+    base_url = "http://api.openweathermap.org/data/2.5/weather?"
+    
+    if search_type == "city":
+        final_url = f"{base_url}appid={API_key}&q={search_query}"
+    elif search_type == "zip":
+        final_url = f"{base_url}appid={API_key}&zip={search_query}"
+    else:
+        raise ValueError(f"Invalid search type: {search_type}. Must be either 'city' or 'zip'.")
+    
+    owm_response_json = requests.get(final_url).json()
+    
+    sunset_utc = datetime.fromtimestamp(owm_response_json["sys"]["sunset"])
+    sunset_local = sunset_utc.strftime("%I:%M %p")
+    
+    temp_celsius = owm_response_json["main"]["temp"] - 273.15
+    temp_max_celsius = owm_response_json["main"]["temp_max"] - 273.15
+    temp_min_celsius = owm_response_json["main"]["temp_min"] - 273.15
+    temp_feels_like_celsius = owm_response_json["main"]["feels_like"] - 273.15
+
+    temp_fahrenheit = round(celsius_to_fahrenheit(temp_celsius), 2)
+    temp_max_fahrenheit = round(celsius_to_fahrenheit(temp_max_celsius), 2)
+    temp_min_fahrenheit = round(celsius_to_fahrenheit(temp_min_celsius), 2)
+    temp_feels_like_fahrenheit = round(celsius_to_fahrenheit(temp_feels_like_celsius), 2)
+
+    rain = owm_response_json.get("rain", "No rain")
+    
+    owm_dict = {
+        "temp": temp_fahrenheit,
+        "temp_max": temp_max_fahrenheit,
+        "temp_min": temp_min_fahrenheit,
+        "feels_like": temp_feels_like_fahrenheit,
+        "description": owm_response_json["weather"][0]["description"],
+        "icon": owm_response_json["weather"][0]["icon"],
+        "wind_speed": owm_response_json["wind"]["speed"],
+        "wind_direction": owm_response_json["wind"]["deg"],
+        "humidity": owm_response_json["main"]["humidity"],
+        "rain": rain,
+        "cloud_cover": owm_response_json["clouds"]["all"],
+        "sunset_local": sunset_local,
+        "city_name": owm_response_json["name"],
+        "date_stamp": datetime.utcnow().strftime("%A, %B %d, %Y")
+    }
+    
+    return WeatherData(**owm_dict)
 
 
 def prompt(
     prompt: str,
     model: str = "gpt-4-turbo",
     instructions: str = "You are a helpful assistant.",
-) -> str:
-
-    response = openai.chat.completions.create(
+):
+    return openai.chat.completions.create(
         model=model,
         messages=[
             {
                 "role": "system",
-                "content": instructions,  # Added instructions as a system message
+                "content": instructions,
             },
             {
                 "role": "user",
                 "content": prompt,
             },
         ],
+        stream=True,
     )
-
-    return response_parser(response.model_dump())
 
 def prompt_image_gen(
     prompt: str,
@@ -183,7 +372,7 @@ def image_gen_prompt(
         messages=[
             {
                 "role": "system",
-                "content": "You are a master of the visual arts, adept at vividly describing scenic locations while emphasizing the effects of the weather. You will receive a CITY and a WEATHER REPORT. Use then to make am awesome Dalle-3 prompt that reflects the actual weather, but make it extreme and try to incorporate elements of the city if they are known. We really want the user to **feel** the weather in their home town. Make the prompt sound like a story so do not say 'generate an image'. Make sure to keep it under 4000 characters",
+                "content": "You are a master of the visual arts, adept at vividly describing locations while emphasizing the effects of the weather. You will receive a CITY and a WEATHER REPORT. Use then to make am awesome Dalle-3 prompt that reflects the actual weather, but make it extreme and try to incorporate elements of the city if they are known. We really want the user to **feel** the weather in their home town. Make the prompt sound like a short story so do not say 'generate an image'. Make sure to keep it under 4000 characters",
             },
             {
                 "role": "user",
@@ -195,40 +384,51 @@ def image_gen_prompt(
 
 
 
-def initialize_weather_agent():
-    """ Initialize the weather agent with specified LLM and tools. """
-    llm = OpenAI()
-    tools = load_tools(['openweathermap-api'], llm)
-    return initialize_agent(
-        tools=tools, llm=llm, agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION, verbose=True
-    )
-
 def run_weather_app(weather_agent):
     """ Run the Streamlit app for weather forecasting. """
-    st.title('Weather Forecast')
-    city = st.text_input('Enter a city name:', '')
+    st.markdown('# Weather Forecast', unsafe_allow_html=True)
+    # TODO: Add option to search by zip code
+    city = ui.input(default_value=None, type='text', placeholder="Enter a city name:", key="city_input")
 
-    if st.button('Get Weather'):
+    if ui.button('Get Weather', key="clk_btn", className="bg-cyan-950 text-white"):
         if city:
-            query = f"What's the weather in {city} in the next 3 hours?"
-            report = weather_agent.run(query)
-            st.write(report)
-            with st.status(label=" ", expanded=True) as status:
+            # Get basic weather forecast
+            weather_data = fetch_weather(city)
+            report = str(weather_data.to_markdown)
+            full_report = ""
+            report_message_placeholder = st.empty()
+            weather_report_stream = prompt(
+                prompt=f"Please concisely summarize the following weather report. Include a concise narrative with highlights and any helpful suggestions, and a markdown table summary. Here is the report: {report}"
+            )
+            for chunk in weather_report_stream:
+                if chunk.choices[0].delta.content is not None:
+                    response = chunk.choices[0].delta.content
+                    full_report += response
+                    report_message_placeholder.markdown(full_report + "▌", unsafe_allow_html=True)
+            # Capture the completed response tokens
+            report_message_placeholder.markdown(full_report, unsafe_allow_html=True)
+            avs(1)
+            # Create prompt for image gen and stream in response
+            with st.status(label="dreaming about the weather ...", expanded=False) as status:
                 full_response = ""
                 message_placeholder = st.empty()
-                dalle3_prompt_stream = image_gen_prompt(f"Please help me write an awesome prompt for Dalle-3 that depicts the weather in {city}. Here is the weather report: {report}")
-                # st.write_stream(dalle3_prompt_stream)
+                dalle3_prompt_stream = image_gen_prompt(f"Please help me write an awesome prompt for Dalle-3 that depicts the weather in {city}. Here is the weather report, and please be mindful of the season we are in based on the report. Here is the report: {report}")
                 for chunk in dalle3_prompt_stream:
                     if chunk.choices[0].delta.content is not None:
                         response = chunk.choices[0].delta.content
                         full_response += response
                         message_placeholder.markdown(full_response + "▌")
-                status.update(expanded=False)
+                status.update(label=' ', expanded=False)
+            # Capture the completed response tokens
             message_placeholder.markdown(full_response)
-
+            # Send image gen prompt to dalle-3
             gen_image = prompt_image_gen(prompt=full_response)
-            st.image(gen_image['image_url'], caption=f"{city}, {timestamp_string}")
-            st.link_button("image link", gen_image['image_url'], use_container_width =True)
+            # Render image using native url
+            avs(1)
+            st.image(gen_image['image_url'], caption=f"{city.title()}, {weather_data.date_stamp}")
+            # Render button link to the image
+            avs(1)
+            st.link_button("image link", gen_image['image_url'], use_container_width=True)
         else:
             st.error("Please enter a city name to check the weather.")
 

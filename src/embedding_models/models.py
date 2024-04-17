@@ -35,7 +35,7 @@ from llama_index.core.base.embeddings.base import BaseEmbedding
 class ColbertReranker(Reranker):
     """
     Reranks the results using pre-trained ColBERTv2 model.
-        ColBERTv2 (columnar BERT) utilizes late-stage contextual token-level interactions.
+        ColBERTv2 (Contextualized Late Interaction over BERT) utilizes late-stage token-level interactions.
         Specifically, it encodes queries and documents into separate embeddings at the token level where
         similarity is calculated.
 

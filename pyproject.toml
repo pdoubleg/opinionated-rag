@@ -107,6 +107,10 @@ llama-index-vector-stores-chroma = "^0.1.6"
 scipy = "^1.12"
 llama-parse = "^0.4.0"
 pyowm = "^3.3.0"
+geopy = "^2.4.1"
+selenium = "^4.19.0"
+streamlit-shadcn-ui = "^0.1.18"
+streamlit-javascript = "^0.1.5"
 
 [tool.pytest.ini_options]
 addopts = "-ra"
@@ -124,6 +128,10 @@ notebook = "^7.1.0"
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+
+
+
 
 
 
