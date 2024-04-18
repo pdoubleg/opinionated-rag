@@ -19,9 +19,10 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-from pydantic import BaseModel, ConfigDict, Field, root_validator, validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator, root_validator, validator
 
 from typing import Optional, Type, Generic, TypeVar, List, Dict, Any
+from typing_extensions import Self
 from datetime import datetime, timedelta
 
 
@@ -34,6 +35,7 @@ def clean_string(string):
 
 
 def extract_citation_numbers_in_brackets(text: str) -> List[str]:
+    """Extracts a list of citation integer-strings, e.g. ['1', '4', '5']"""
     matches = re.finditer(r"\[(\d+)\]", text)
     citations = []
     seen = set()
@@ -48,7 +50,7 @@ def extract_citation_numbers_in_brackets(text: str) -> List[str]:
 def generate_citation_strings(
     citation_numbers: List[str],
     df: pd.DataFrame,
-    opinion_claim_numbers: List[str],
+    opinion_claim_numbers: Optional[List[str]] = None,
 ) -> List[str]:
     result = []
     for citation in citation_numbers:
@@ -308,15 +310,19 @@ class ResearchReport(BaseModel):
         ...,
         description="A legal style research report comparing a new issue or question with similar past issues.",
     )
-    source_documents: List[BaseModel] = Field(
-        default_factory=list,
-        description="A list of source documents used to generate the final answer.",
-    )
+    citations: Optional[Any] = None
+    
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
         extra="allow",
     )
-
+    
+    @model_validator(mode='after')
+    def extract_citations(self) -> Self:
+        cites = extract_citation_numbers_in_brackets(self.research_report)
+        self.citations = cites if cites is not None else "No Citations Found"
+        return self
+           
 
 def get_final_answer(formatted_input: str, model_name: str) -> ResearchReport:
     """Gets the final answer from the model based on the formatted input.
@@ -341,6 +347,6 @@ def get_final_answer(formatted_input: str, model_name: str) -> ResearchReport:
                 "role": "system",
                 "content": "You are helpful legal research assistant. Analyze the current legal question, and compare it to the search results of past cases. Using only the provided context, offer insights into how the researcher can reference the relevant past questions to address the new outstanding issue. Do not answer the question or provide opinions, only draw helpful comparisons to the relevant search results. Remember to use markdown links when citing the context, for example [[number](URL)].",
             },
-            {"role": "user", "content": f"Search Results:\n\n{formatted_input}"},
+            {"role": "user", "content": f"Remember to use inline markdown links when citing the context, for example [[number](URL)]. Search Results:\n\n{formatted_input}"},
         ],
     )

@@ -1,3 +1,34 @@
+"""`
+This class follows the Dependency Inversion Principle, which promotes loose coupling and easier testability and maintainability. 
+It allows swapping out different search engine implementations without affecting the code that uses the SearchEngine factory to create objects.
+
+The main idea is to create search engine objects on-the-fly using only a SearchType emun and a config.
+
+## Current implementations:
+
+1. KEYWORD: Keyword-based search
+   - Exact match with BM25 weighting via Tantivy and LanceDB
+   - Benefits: Fast, simple to implement, works well for exact matches
+   - Limitations: Lacks understanding of context and semantics, struggles with synonyms and related terms
+
+2. SEMANTIC: Semantic search using dense vector embeddings
+   - FAISS vector search over OpenAI embeddings
+   - Benefits: Captures semantic meaning, can find relevant results even if keywords don't exactly match
+   - Limitations: Computationally expensive, requires pre-computed embeddings, may miss exact keyword matches
+   
+3. SPLADE: SParse Lexical AnD Expansion Model
+   - Neural retrieval model which learns query/document sparse expansion via BERT MLM head and sparse regularization
+   - Benefits: Efficient storage and retrieval, effectively blends keyword matching and capturing semantics via expansion terms
+   - Limitations: Requires specialized less widely used model than dense embeddings
+
+4. HYBRID: Combines keyword and semantic search
+   - Conducts two initial searches (semantic and SPLADE) and reranks results using Colbertv2
+   - Benefits: Leverages strengths of both approaches, can find both exact matches and semantically relevant results
+   - Limitations: More complex to implement, may require tuning to balance keyword and semantic components
+   
+"""
+
+
 from abc import ABC, abstractmethod
 from enum import Enum
 from pathlib import Path
@@ -16,6 +47,7 @@ logger = setup_colored_logging(__name__)
 
 class SearchType(str, Enum):
     """Enum representing different types of search engines."""
+    
     KEYWORD = "keyword"
     SEMANTIC = "semantic"
     HYBRID = "hybrid"
@@ -54,15 +86,11 @@ class SearchEngineBase(ABC):
 class SearchEngine(SearchEngineBase):
     """Abstract factory class for creating search engines.
 
-    This class follows the Dependency Inversion Principle, which promotes loose coupling and easier
-    testability and maintainability. It allows swapping out different search engine implementations
-    without affecting the code that uses the SearchEngine factory to create objects.
-
     To add a new search engine:
     1. Create a configuration class subclassing SearchEngineConfig.
     2. Implement the specific search engine class inheriting from SearchEngineBase.
     3. Update the create() method in this class to handle the new search engine type.
-    4. Optionally, add the name of your search engine to the SearchType enum.
+    4. Add the name of your search engine to the SearchType enum.
 
     Attributes:
         config (SearchEngineConfig): Configuration for the search engine.
@@ -73,7 +101,7 @@ class SearchEngine(SearchEngineBase):
 
     @staticmethod
     def create(config: SearchEngineConfig) -> Optional["SearchEngine"]:
-        """Create a new instance of the search engine based on the provided configuration.
+        """Create a new instance of a search engine based on the provided configuration.
 
         Args:
             config (SearchEngineConfig): Configuration for the search engine.

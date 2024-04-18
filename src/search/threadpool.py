@@ -19,15 +19,20 @@ def run_functions_tuples_in_parallel(
     max_workers: int | None = None,
 ) -> list[Any]:
     """
-    Executes multiple functions in parallel and returns a list of the results for each function.
+    Executes multiple functions in parallel and returns a list of the results in the same order as the input.
 
     Args:
-        functions_with_args: List of tuples each containing the function callable and a tuple of arguments.
-        allow_failures: if set to True, then the function result will just be None
-        max_workers: Max number of worker threads
+        functions_with_args: List of tuples, each containing a function callable and a tuple of its arguments.
+        allow_failures: If True, continues execution even if a function raises an exception. The result for that
+                        function will be None. If False (default), raises the exception and stops execution.
+        max_workers: Maximum number of worker threads to use. If None (default), uses the number of input functions.
 
     Returns:
-        dict: A dictionary mapping function names to their results or error messages.
+        list: A list of results in the same order as the input functions. If a function raised an exception and
+              allow_failures is True, its result will be None.
+
+    Raises:
+        Exception: If allow_failures is False and any of the functions raised an exception.
     """
     workers = (
         min(max_workers, len(functions_with_args))
@@ -83,8 +88,20 @@ def run_functions_in_parallel(
     allow_failures: bool = False,
 ) -> dict[str, Any]:
     """
-    Executes a list of FunctionCalls in parallel and stores the results in a dictionary where the keys
-    are the result_id of the FunctionCall and the values are the results of the call.
+    Executes a list of FunctionCalls in parallel and returns a dictionary of the results.
+
+    Args:
+        function_calls: List of FunctionCall objects to execute in parallel.
+        allow_failures: If True, continues execution even if a function raises an exception. The result for that
+                        function will be None. If False (default), raises the exception and stops execution.
+
+    Returns:
+        dict: A dictionary where the keys are the result_id of each FunctionCall and the values are the
+              corresponding results. If a function raised an exception and allow_failures is True, its result
+              will be None.
+
+    Raises:
+        Exception: If allow_failures is False and any of the functions raised an exception.
     """
     results = {}
     with ThreadPoolExecutor(max_workers=len(function_calls)) as executor:
@@ -105,4 +122,3 @@ def run_functions_in_parallel(
                     raise
 
     return results
-

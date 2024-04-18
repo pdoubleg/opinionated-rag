@@ -47,6 +47,7 @@ class HybridSearchEngine(SearchEngine):
             >>> )
             >>> search_engine = HybridSearchEngine.create(config)
             >>> results = search_engine.query_similar_documents(query, top_k=5)
+            
         """
         super().__init__(config)
         self.config: HybridSearchConfig = config

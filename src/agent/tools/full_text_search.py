@@ -15,6 +15,8 @@ DATA_PATH = "data/splade.parquet"
 
 
 class FTSConfig(SearchEngineConfig):
+    """Configuration for Full Text Search (FTS) engine."""
+    
     type: SearchType = SearchType.KEYWORD
     data_path: str = DATA_PATH
     text_column: str = "body"
@@ -22,6 +24,8 @@ class FTSConfig(SearchEngineConfig):
 
 
 class FTSSearchEngine(SearchEngine):
+    """Full Text Search (FTS) engine using Tantivy via LanceDB."""
+    
     def __init__(self, config: FTSConfig = FTSConfig()):
         super().__init__(config)
         self.config: FTSConfig = config
@@ -29,33 +33,59 @@ class FTSSearchEngine(SearchEngine):
         
 class FTSSearch:
     """
-    Full Text Search (FTS) class for querying similar documents.
+    Full Text Search (FTS) class using Tantivy via LanceDB.
+    
+    At query time, constructs a FTS index from one or more DataFrame columns containing text.
+    Even though this class does not use embeddings, they are required by lance 
+    to build a database. 
+        
+    Note: This class accepts SQL-like filter statements at query time.
+        Supported SQL expressions:
+        *  >, >=, <, <=, =
+        *  AND, OR, NOT
+        *  IS NULL, IS NOT NULL
+        *  IS TRUE, IS NOT TRUE, IS FALSE, IS NOT FALSE
+        *  IN
+        *  LIKE, NOT LIKE 
+        
+    General info: https://lancedb.github.io/lancedb/fts/
+    Filtering info: https://lancedb.github.io/lancedb/sql/#pre-and-post-filtering
 
     Args:
         df (pd.DataFrame): Input DataFrame containing the documents.
         embedding_column (str): Name of the column containing the embeddings.
-        text_column (str): Name of the column containing the text data.
+        text_column (str): Name of the column containing the text to index.
+        text_column_list (list[str], optional): List of columns containing text to index.
+            Columns will be combined into a single index for querying.
 
     Raises:
         ValueError: If the specified embedding_column is not present in the DataFrame.
+        ValueError: If neither text_column nor text_column_list is provided.
     """
     def __init__(
         self,
         df: pd.DataFrame,
         embedding_column: str,
-        text_column: str,
+        text_column: Optional[str] = None,
+        text_column_list: Optional[List[str]] = None,
     ) -> None:
         if embedding_column not in df.columns:
             raise ValueError(f"Embedding column '{embedding_column}' not found in the DataFrame.")
+        if text_column is None and text_column_list is None:
+            raise ValueError("At least one of text_column or text_column_list must be provided.")
+        
         self._df = df
         self.embedding_column = embedding_column
         self.text_column = text_column
+        self.text_column_list = text_column_list
         self.uri = "../temp-lancedb/temp_table.lance"
 
     @property
     def df(self) -> pd.DataFrame:
         """
         Returns the DataFrame with the embedding column renamed to 'vector'.
+        
+        This is required by LanceDB for using pre-computed embeddings.
 
         Returns:
             pd.DataFrame: The modified DataFrame.
@@ -75,23 +105,27 @@ class FTSSearch:
         Args:
             query (str): Query string for searching similar documents.
             top_k (int): Number of top similar documents to retrieve (default: 20).
-            filter (Optional[str]): Filter condition for the search (default: None).
+            filter (Optional[str]): SQL-like filter condition for the search (default: None).
 
         Returns:
-            pd.DataFrame: DataFrame containing the top similar documents.
+            pd.DataFrame: DataFrame containing the top k similar documents.
 
         Example:
             >>> fts_search = FTSSearch(df, "embeddings", "text")
             >>> results = fts_search.query_similar_documents("example query", top_k=10)
         """
         db = lancedb.connect(self.uri)
-        cols = self.df.columns.tolist()
         try:
-            table = db.create_table("temp_lance", data=self.df[cols], mode="create")
+            table = db.create_table("temp_lance", data=self.df, mode="create")
         except:
-            table = db.create_table("temp_lance", data=self.df[cols], mode="overwrite")
+            table = db.create_table("temp_lance", data=self.df, mode="overwrite")
 
-        table.create_fts_index(self.text_column, replace=True)
+        if self.text_column_list:
+            text_to_index = self.text_column_list
+        else:
+            text_to_index = self.text_column
+        
+        table.create_fts_index(text_to_index, replace=True)
 
         # Clean up query: replace all newlines with spaces in query,
         # force special search keywords to lower case, remove quotes,

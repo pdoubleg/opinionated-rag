@@ -289,7 +289,7 @@ def text_nodes_to_dataframe(
     return pd.DataFrame(data)
 
 
-def Dataframe2documents(df):
+def dataframe2documents(df):
     loader = DataFrameLoader(
         df[["context", "id", "citation", "name_abbreviation", "court_name"]],
         page_content_column="context",
@@ -298,7 +298,7 @@ def Dataframe2documents(df):
     return docs
 
 
-def documents2Dataframe(documents: List[Document]) -> pd.DataFrame:
+def documents2dataframe(documents: List[Document]) -> pd.DataFrame:
     rows = []
     for chunk in documents:
         row = {

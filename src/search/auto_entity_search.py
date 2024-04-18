@@ -27,20 +27,16 @@ class ResolvedImprovedEntities(BaseModel):
 
 class MatchedEntitySearch:
     """
-    A class to handle entity search functionality. It extracts entities from the query and filters 
-    results such that each will have at least one entity match. Results are sorted by count of
-    matched entities followed by 'similarity'.
-
-    The class provides methods for ingesting data, extracting named entities,
+    This class provides methods for ingesting data, extracting named entities,
     resolving and refining entities using an LLM, and performing searches based on queries and
     extracted entities. It leverages a pre-trained named entity recognition (NER) model and
-    integrates with a LanceDB database for storage and retrieval of data.
+    integrates with a LanceDB database for storage and retrieval.
 
     Example usage:
         >>> search = MatchedEntitySearch(db_path="./.lancedb")
         >>> search.ingest_data(df, table_name="context", mode='overwrite')
         >>> query = "What is the capital of France?"
-        >>> search_results = search.search(query, limit=100)
+        >>> search_results = search.search(query, limit=100) # will contain 'France'
     """
 
     def __init__(self, db_path: str, model_id: str = "dslim/bert-base-NER"):
@@ -244,16 +240,31 @@ class MatchedEntitySearch:
             ],
         )  # type: ignore
         
-    def search(self, query: str, limit: int = 100, verbose=False) -> pd.DataFrame:
+    def search(self, query: str, limit: int = 100, strict: bool = False, verbose: bool = False) -> pd.DataFrame:
         """
         Search the LanceDB table for relevant results based on the query and extracted entities.
 
+        This method performs the following steps:
+        1. Extracts named entities from the query using the NER pipeline.
+        2. Resolves and refines the extracted entities using an LLM.
+        3. Retrieves the embedding for the query.
+        4. Searches the LanceDB table for relevant results based on the embedding similarity.
+        5. Calculates the match count between the query entities and the entities in each result.
+        6. Sorts the results based on the match count and vector similarity.
+
         Args:
             query (str): The search query.
-            limit (int): The maximum number of search results to return.
+            limit (int, optional): The maximum number of search results to return. Defaults to 100.
+            strict (bool, optional): If True, performs strict matching of entities. Defaults to False.
+            verbose (bool, optional): If True, logs additional information. Defaults to False.
 
         Returns:
             pd.DataFrame: A DataFrame containing the search results, sorted by match count and vector similarity.
+
+        Example:
+            >>> query = "What is the capital of France?"
+            >>> search_results = search.search(query, limit=100)
+            >>> search_results.head() # results will contain 'France'
         """
         ne = self.extract_named_entities([query])
         resolved_batch = [self.resolve_entities(", ".join(t)) for t in ne]
@@ -262,12 +273,21 @@ class MatchedEntitySearch:
         xq = self.get_embedding(query)
         xdf = self.tbl.search(np.array(xq)).limit(limit).to_pandas()
         xdf["score"] = 1 - xdf["_distance"]
-
+        
         res = []
-        for _, row in xdf.iterrows():
-            match_count = sum(1 for i in processed_entities[0].split(', ') if i in row["named_entities"])
-            if match_count > 0:
-                res.append((row['context'], row['id'], match_count))
+        
+        if strict:
+            for _, row in xdf.iterrows():
+                row_entities = set(row["named_entities"].lower().split(', '))
+                query_entities = set(processed_entities[0].lower().split(', '))
+                match_count = len(query_entities.intersection(row_entities))
+                if match_count > 0:
+                    res.append((row['context'], row['id'], match_count))
+        else:
+            for _, row in xdf.iterrows():
+                match_count = sum(1 for i in processed_entities[0].lower().split(', ') if i in row["named_entities"].lower())
+                if match_count > 0:
+                    res.append((row['context'], row['id'], match_count))
 
         res.sort(key=lambda x: x[2], reverse=True)
 

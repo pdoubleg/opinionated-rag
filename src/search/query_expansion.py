@@ -171,7 +171,7 @@ class SubQuestion(BaseModel):
         )
         logger.info(f"Running vector (OpenAI) search: {self.sub_question_query}")
         vector_results = semantic_search.query_similar_documents(
-            self.sub_question_query, top_n=10
+            self.sub_question_query, top_k=10
         )
 
         # Initialize an empty DataFrame for SPLADE results
@@ -181,7 +181,7 @@ class SubQuestion(BaseModel):
         if self.sub_question_keywords and any(self.sub_question_keywords):
             keywords = ", ".join(self.sub_question_keywords)
             logger.info(f"Running keyword (SPLADE) search: {keywords}")
-            splade_results = splade_search.query_similar_documents(keywords, top_n=10)
+            splade_results = splade_search.query_similar_documents(keywords, top_k=10)
 
         # Concatenate results only if splade_results is not empty
         if not splade_results.empty:
