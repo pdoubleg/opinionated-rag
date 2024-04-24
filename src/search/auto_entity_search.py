@@ -264,7 +264,7 @@ class MatchedEntitySearch:
         Example:
             >>> query = "What is the capital of France?"
             >>> search_results = search.search(query, limit=100)
-            >>> search_results.head() # results will contain 'France'
+            >>> search_results.head() # results will contain 'France' or 'france'
         """
         ne = self.extract_named_entities([query])
         resolved_batch = [self.resolve_entities(", ".join(t)) for t in ne]
