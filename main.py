@@ -1,18 +1,25 @@
 from concurrent.futures import ThreadPoolExecutor
 import tempfile
+from typing import List
+from urllib.parse import urlparse
+import instructor
+from pydantic import BaseModel, Field
 import streamlit as st
+import streamlit_shadcn_ui as ui
+from streamlit_extras.add_vertical_space import add_vertical_space as avs
 import os
 import io
 import re
 import base64
 import time
 from dotenv import load_dotenv
+from tenacity import Retrying, stop_after_attempt, wait_fixed
+from src.doc_store.ebay_scraper import AverageSalePrice, eBayWebSearch
 
 from src.utils.output import write_md_to_pdf
 
 load_dotenv()
 import openai
-from openai import OpenAI
 from metaphor_python import Metaphor
 
 # from PIL import Image
@@ -34,6 +41,26 @@ st.set_page_config(
 st.title("`πi` | PropertyImageInspector\n\nPowered by: `GPT-4 Turbo with Vision`")
 
 
+class eBayQueryList(BaseModel):
+    """A eBay item that is being searched."""
+    
+    item_name: str = Field(
+        ...,
+        description="A concise, but descriptive name for the item of interest."
+    )
+    search_queries: List[str] = Field(
+        default_factory=list,
+        description="A diverse list of alternative eBay search queries that compliment the primary item of interest."
+    )
+    
+    @property
+    def search_tasks(self):
+        alternates = [query for query in self.search_queries]
+        search_tasks = [str(self.item_name)]
+        search_tasks.extend(alternates)
+        return search_tasks
+
+
 # Initialize session state for last API key
 if "last_api_key" not in st.session_state:
     st.session_state["last_api_key"] = ""
@@ -41,34 +68,18 @@ if "last_api_key" not in st.session_state:
 # Create a sidebar for API key configuration and additional features
 st.sidebar.header("Configuration")
 api_key_ = st.sidebar.text_input(
-    "Enter your OpenAI API key",
-    type="password",
-    help=f"Get an api key at www.openai.com",
+    "Enter your email address",
 )
 
-meta_key_ = st.sidebar.text_input(
-    "Enter your Metaphor API key",
-    type="password",
-    help=f"Get 1k free searches at www.metaphor.systems",
-)
+ADMIN_USERS = {
+    'pdoubleg@gmail.com',
+    'test@example.com',
+    'person3@email.com'
+}
 
-if not api_key_ or not meta_key_:
-    st.warning("Please input api keys")
-    st.stop()
+user_dict = st.experimental_user.to_dict()
 
-if api_key_ and api_key_ != st.session_state["last_api_key"]:
-    st.toast("**Thanks!** We're all set now :+1:")
-    st.session_state["last_api_key"] = api_key_
-
-lock = st.secrets["SECRET_API_KEY"]
-
-if api_key_:
-    if api_key_ == lock:
-        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-        metaphor = Metaphor(api_key=st.secrets["METAPHOR_API_KEY"])
-    else:
-        client = OpenAI(api_key=api_key_)
-        metaphor = Metaphor(api_key=meta_key_)
+if user_dict['email'] or api_key_ in ADMIN_USERS:
 
     # Function to encode the image to base64
     def encode_image(image_file):
@@ -112,66 +123,32 @@ if api_key_:
     if "pdf_path" not in st.session_state:
         st.session_state["pdf_path"] = ""
 
-    def get_llm_response(
-        system="You are a helpful assistant.",
-        user="",
-        temperature=1,
-        model="gpt-3.5-turbo",
-    ):
-        completion = openai.chat.completions.create(
-            model=model,
-            temperature=temperature,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-        )
-        return completion.choices[0].message.content
-
-    def create_base_item_generation_prompt(vision_output):
-        return f"""The following is a detailed description of a user-supplied image of an item they want to buy. Take the description, and distill it down to a concise, but descriptive internet search query that will help empower them as a buyer:\n\nITEM_ANALYSIS:\n{vision_output}\n\nHELPFUL_ANSWER: """
-
-    def generate_base_query(vision_output):
-        user_prompt = create_base_item_generation_prompt(vision_output)
-        completion = get_llm_response(
-            system="The user will ask you to help generate a search query. Respond with only the query in plain text with no extra formatting.",
-            user=user_prompt,
+    def generate_base_queries(
+        item_description: str, 
+    ) -> eBayQueryList:
+        client = instructor.from_openai(openai.OpenAI())
+        return client.chat.completions.create(
+            model="gpt-4-turbo",
             temperature=0.3,
+            response_model=eBayQueryList,
+            max_retries=Retrying(
+                stop=stop_after_attempt(5),
+                wait=wait_fixed(1),
+            ),
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a world class eBay assistant.",
+                },
+                {
+                    "role": "user",
+                    "content": f"The following is a detailed description of an item the user wants to buy on eBay. Take the description, and distill it down to concise, but descriptive name along with **2** diverse search queries for the item::\n\nITEM DESCRIPTION: {item_description}",
+                },
+            ],
+            stream=False,
         )
-        return completion
 
-    def create_keyword_query_generation_prompt(topic, n):
-        return f"""I'm conducting research on {topic} and need help coming up with Google keyword search queries.
-    Google keyword searches should just be a few words long. It should not be a complete sentence.
-    Please generate a diverse list of {n} Google keyword search queries that would be useful for researching ${topic}. Do not add any formatting or numbering to the queries."""
 
-    def generate_search_queries(topic, n):
-        user_prompt = create_keyword_query_generation_prompt(topic, n)
-        completion = get_llm_response(
-            system="The user will ask you to help generate some search queries. Respond with only the suggested queries in plain text with no extra formatting, each on it's own line.",
-            user=user_prompt,
-            temperature=1,
-        )
-        queries = [s for s in completion.split("\n") if s.strip()][:n]
-        return queries
-
-    def get_keyword_search_results(queries, linksPerQuery=1):
-        results = []
-        for query in queries:
-            search_response = metaphor.search(
-                query, type="keyword", num_results=linksPerQuery, use_autoprompt=False
-            )
-            results.extend(search_response.results)
-        return results
-
-    def get_neural_search_results(queries, linksPerQuery=1):
-        results = []
-        for query in queries:
-            search_response = metaphor.search(
-                query, type="neural", num_results=linksPerQuery, use_autoprompt=True
-            )
-            results.extend(search_response.results)
-        return results
 
     def display_search(search_results):
         """
@@ -426,107 +403,111 @@ if api_key_:
         pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="800" height="800" type="application/pdf"></iframe>'
         st.markdown(pdf_display, unsafe_allow_html=True)
 
-    # File uploader allows user to add their own image
-    uploaded_file = st.file_uploader("Upload an image", type=["jpg", "png", "jpeg"])
 
-    if uploaded_file:
-        # Display the uploaded image
-        with st.expander("Image", expanded=True):
-            st.image(uploaded_file, caption=uploaded_file.name, use_column_width=True)
+    def is_url(image_path: str) -> bool:
+        """
+        Check if the given string is a valid URL.
 
-    # Create two columns for the toggles
-    col1, col2, col3 = st.columns(3)
+        Args:
+            image_path (str): The string to check.
 
-    # Toggle for showing additional details input in the first column
-    with col1:
-        show_details = st.toggle("Add details about the image", value=False)
+        Returns:
+            bool: True if the string is a valid URL, False otherwise.
+        """
+        try:
+            result = urlparse(image_path)
+            return all([result.scheme, result.netloc])
+        except ValueError:
+            return False
+    
+    def encode_image_to_base64(image_path: str) -> str:
+        """
+        Encode a local image file to a base64 string.
 
-        if show_details:
-            # Text input for additional details about the image, shown only if toggle is True
-            additional_details = st.text_area(
-                "Add any additional details or context about the image here:",
-                disabled=not show_details,
-                height=125,
-            )
+        Args:
+            image_path (str): The path to the image file.
 
-    # Toggle for including audio in the second column
-    with col2:
-        include_audio = st.toggle("Include audio report", value=False)
+        Returns:
+            str: The base64 encoded string of the image.
+        """
+        with open(image_path, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode("utf-8")
+    
+    # File uploader allows user to add their own images
+    uploaded_files = st.file_uploader("Upload one or more images", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
 
-        if include_audio:
-            # Radio button for selecting audio type, shown only if toggle is True
-            audio_type = st.radio(
-                "Choose the type of audio:",
-                ("alloy", "echo", "fable", "onyx", "nova", "shimmer"),
-                index=4,
-            )
+    if uploaded_files:
+        # Display the uploaded images
+        with st.expander("Images", expanded=True):
+            for uploaded_file in uploaded_files:
+                st.image(uploaded_file, caption=uploaded_file.name, use_column_width=True)
 
-    # Radio button for selecting web search type
-    with col3:
-        web_search_type = st.radio(
-            "Choose the type of web search:",
-            ("keyword", "neural", "none"),
-            index=0,
-            help="`keyword` runs a standard search - good for specific topics\n\n`neural` predicts interesting links - good when a topic is popularly discussed online\n\nLearn more at: https://docs.metaphor.systems/reference/prompting-guide",
+    show_details = st.toggle("Add details about the image", value=False)
+
+    if show_details:
+        # Text input for additional details about the image, shown only if toggle is True
+        additional_details = ui.textarea(
+            default_value="Add any additional details or context about the image here:",
+            # disabled=not show_details,
+            # height=125,
         )
 
+
     # Add a radio button for the prompt type
-    prompt_type = st.radio(
-        "Choose the type of item for analysis:",
-        ("Personal Property", "Structural Items", "Diagram Inspector"),
-    )
+    # prompt_type = st.radio(
+    #     "Choose the type of item for analysis:",
+    #     ("Single Image", "Multi Image"),
+    # )
 
     # Button to trigger the analysis
-    analyze_button = st.button("Inspect the Image", type="secondary")
+    analyze_button = ui.button('Launch Inspection', key="clk_btn", className="bg-green-950 text-white")
+    # analyze_button = st.button("Inspect the Image", type="secondary")
 
     if analyze_button:
         st.session_state.analyze_button_clicked = True
 
     # Check if an image has been uploaded, if the API key is available, and if the button has been pressed
-    if uploaded_file is not None and st.session_state.analyze_button_clicked:
+    if st.session_state.analyze_button_clicked:
         with st.spinner("Inspecting the image ..."):
             # Encode the image
-            base64_image = encode_image(uploaded_file)
+            base64_images = [encode_image(file) for file in uploaded_files]
 
-            # Save the uploaded image to a file
-            image_path = base64_to_image(base64_image)
-            with open(image_path, "wb") as img_file:
-                img_file.write(uploaded_file.getvalue())
+            # Save the uploaded images to files
+            image_paths = []
+            for i, base64_img in enumerate(base64_images):
+                image_path = base64_to_image(base64_img)
+                image_paths.append(image_path)
+                
+                with open(image_path, "wb") as img_file:
+                    img_file.write(uploaded_files[i].getvalue())
 
-            # Set the prompt text based on the selected type
-            if prompt_type == "Personal Property":
+            # Set the prompt text based on number of photos
+            
+            if len(image_paths) == 1:
+                prompt_type = "Single Image"
+            else:
+                prompt_type = "Multi Image"
+            
+            if prompt_type == "Single Image":
                 prompt_text = (
                     "You are a highly knowledgeable eBay power seller. "
                     "Your task is to examine the following image in detail. "
-                    "Begin with a descriptive title caption in bold. "
+                    "Begin with a descriptive title caption using level one markdown heading. "
                     "Provide a comprehensive, factual, and price-focused explanation of what the image depicts. "
                     "Highlight key elements and their significance, and present your analysis in clear, well-structured markdown format. "
                     "If applicable, include any relevant facts to enhance the explanation. "
                     "TITLE: "
                 )
 
-            elif prompt_type == "Structural Items":
+            elif prompt_type == "Multi Image":
                 prompt_text = (
-                    "You are a highly knowledgeable structural damage appraiser. "
-                    "Your task is to generate a highly concise description of the image focusing on repairs needed. "
-                    "Your task is to examine the following image in detail. "
-                    "Begin with a descriptive title caption in bold. "
-                    "Provide a comprehensive, scope-of-repair-focused explanation of what the image depicts. "
-                    "Itemize key repair scope items, and present your analysis in clear, well-structured markdown format. "
-                    "If applicable, include any relevant considerations such as demolition, or mitigation to enhance the scope explanation. "
-                    "If possible, include rough approximations of time and material for each scope item. "
-                    "TITLE: "
-                )
-
-            elif prompt_type == "Diagram Inspector":
-                prompt_text = (
-                    "You are a highly knowledgeable diagram interpreter specializing in deciphering analytical plots and technical diagrams. "
-                    "Your task is to examine the following image in detail. "
-                    "Begin with a descriptive title caption in bold. "
-                    "Provide a comprehensive and clear explanation of what the image depicts. "
-                    "Itemize key observations, and present your analysis in clear, well-structured markdown format. "
-                    "If applicable, include any relevant considerations such as the image's context or motivations. "
-                    "If possible, include rough approximations of any quantifyable features of the image. "
+                    "You are a highly knowledgeable eBay power seller. "
+                    "Your task is to examine the following set of images in detail, which are all of the same item. "
+                    "Begin with a descriptive title caption using level one markdown heading. "
+                    "Briefly summarize each of the views and how they contribute to the overall understanding of the item. "
+                    "Understand that users may inadvertently provide duplicate images. Simply advise them of this and proceed the analysis. "
+                    "Provide a concise, factual, and price-focused explanation of what the images depict. "
+                    "Highlight key elements and their significance, and present your analysis in clear, well-structured markdown format. "
                     "TITLE: "
                 )
 
@@ -539,10 +520,9 @@ if api_key_:
                     "role": "user",
                     "content": [
                         {"type": "text", "text": prompt_text},
-                        {
-                            "type": "image_url",
-                            "image_url": f"data:image/jpeg;base64,{base64_image}",
-                        },
+                    ] + [
+                        {"type": "image_url", "image_url": {"url": path} if is_url(path) else f"data:image/jpeg;base64,{encode_image_to_base64(path)}"}
+                        for path in image_paths
                     ],
                 }
             ]
@@ -556,7 +536,8 @@ if api_key_:
                     # response = client.chat.completions.create(
                     #     model="gpt-4-vision-preview", messages=messages, max_tokens=500, stream=False
                     # )
-
+                    
+                    client = openai.OpenAI()
                     # Stream the response
                     full_response = ""
                     message_placeholder = st.empty()
@@ -573,136 +554,54 @@ if api_key_:
                     # Final update to placeholder after the stream ends
                     message_placeholder.markdown(full_response)
 
-                    if include_audio:
-                        with st.spinner(text="Please hold for audio..."):
-                            response = client.audio.speech.create(
-                                model="tts-1",
-                                voice=audio_type,
-                                input=full_response,
+                    st.markdown("___")
+                    
+                    # ====== Web search starts here
+                    
+                    # TODO: Replace this with image embedding version. Need to get top 3-5 for each query, render and save for later
+                    
+                    base_queries = generate_base_queries(full_response)
+                    
+                    cols = st.columns(len(base_queries.search_tasks))
+                    
+                    for i, search in enumerate(base_queries.search_tasks):
+                        with cols[i]:
+                            search_string = str(search.title())
+                            st.markdown(f"**{search_string}**")
+                            averagePrice = AverageSalePrice(
+                                query=search_string, 
+                                country='us', 
+                                condition='all',
                             )
-                            # Adjusted to use with_streaming_response for proper streaming
-                            with response.with_streaming_response() as streaming_response:
-                                with open("output.mp3", "wb") as audio_file:
-                                    for chunk in streaming_response.iter_bytes():
-                                        audio_file.write(chunk)
-                            audio_file = open("output.mp3", "rb")
-                            audio_bytes = audio_file.read()
-                            st.success("Audio is Ready")
-                        st.audio(audio_bytes)
+                            st.markdown(str(averagePrice))
+                            
+                            st.markdown("___")
+                        
+                        with cols[i]:  
+                            sold_items = eBayWebSearch(search_string, alreadySold=True)
+                            st.markdown(str(sold_items[0]))
+                            st.markdown(str(sold_items[1]))
+                            st.markdown(str(sold_items[2]))
+                    
+                    
+                    st.markdown("___")
+
+                    # Define the placeholder for the report outside the container
+                    report_placeholder = st.empty()
 
                     st.markdown("___")
 
-                    if web_search_type !="none":
-                        st.markdown("## Internet Research:")
+ 
+                    # The final report will be displayed outside the container
+                    report_placeholder.markdown()
 
-                        item_title = generate_base_query(full_response)
+                    st.session_state["last_processed_message"] = messages
+                    st.session_state["last_full_response"] = full_response
 
-                        search_queries = generate_search_queries(item_title, 3)
-                        st.markdown("Running suggested searches:")
-                        st.markdown(f"* {search_queries[0]}")
-                        st.markdown(f"* {search_queries[1]}")
-                        st.markdown(f"* {search_queries[2]}")
-
-                        with st.status(
-                            "Links to suggested research material", state="running"
-                        ) as status:
-                            if web_search_type == "keyword":
-                                search_result_links = get_keyword_search_results(
-                                    search_queries, 2
-                                )
-                            else:
-                                search_result_links = get_neural_search_results(
-                                    search_queries, 2
-                                )
-                            display_search(search_result_links)
-                            status.update()
-
-                        st.markdown("___")
-
-                        # Define the placeholder for the report outside the container
-                        report_placeholder = st.empty()
-
-                        st.markdown("___")
-
-                        with st.status(
-                            "Synthesizing internet search results...", state="running"
-                        ) as status:
-                            search_result_contents = get_page_contents(
-                                [link.id for link in search_result_links]
-                            )
-                            internet_content = create_web_content_string(
-                                search_result_contents, 30000
-                            )
-                            full_report = synthesize_report(item_title, internet_content)
-                            formatted_content = format_for_markdown(internet_content)
-                            html_content = display_content(search_result_contents)
-                            st.markdown(f"{html_content}", unsafe_allow_html=True)
-                            status.update(label="Source content")
-
-                        # The final report will be displayed outside the container
-                        report_placeholder.markdown(full_report)
-
-                        # Strip all URLs from the full_report string
-                        full_report_audio = re.sub(r"http\S+", "", full_report)
-
-                        if include_audio:
-                            with st.spinner(text="Please hold again..."):
-                                response_ = client.audio.speech.create(
-                                    model="tts-1",
-                                    voice=audio_type,
-                                    input=full_report_audio,
-                                )
-                                # Adjusted to use with_streaming_response for proper streaming
-                                with response_.with_streaming_response() as streaming_response_:
-                                    with open("report.mp3", "wb") as audio_file_:
-                                        for chunk in streaming_response_.iter_bytes():
-                                            audio_file_.write(chunk)
-                                audio_file_ = open("report.mp3", "rb")
-                                audio_bytes_ = audio_file_.read()
-                            st.success("Audio is Ready")
-                            st.audio(audio_bytes_)
-
-                        st.session_state["last_processed_message"] = messages
-                        st.session_state["last_full_response"] = full_response
-
-                        st.session_state.analyze_button_clicked = False
-                        # Create the PDF
-                    #     pdf_path = create_pdf(
-                    #         image_path,
-                    #         full_response,
-                    #         full_report,
-                    #         internet_content,
-                    #     )
-                    # else:
-                    #     pdf_path = create_pdf(
-                    #             image_path=image_path,
-                    #             text=full_response,
-                    #             research=" ",
-                    #             content=" ",
-                    #         )
-                    # with st.expander:  
-                    #     show_pdf(pdf_path)
+                    st.session_state.analyze_button_clicked = False
+                    # Create the PDF
                     st.markdown("___")
                     # Provide the download button
-                    # with open(pdf_path, "rb") as pdf_file:
-                    #     PDFbyte = pdf_file.read()
-
-                    # st.download_button(label="Export_Report",
-                    #                     data=PDFbyte,
-                    #                     file_name="report.pdf",
-                    #                     mime='application/octet-stream')
-                    
-
-                    # with open(st.session_state.pdf_path, "rb") as file:
-                    #     btn = st.download_button(
-                    #         label="Download Report & Reset App",
-                    #         data=file,
-                    #         file_name="report.pdf",
-                    #         mime="application/pdf",
-                    #     )
-
-                    # Display the response in the app
-                    # st.write(response.choices[0].message.content)
                 except Exception as e:
                     st.error(f"An error occurred: {e}")
 
@@ -722,7 +621,3 @@ if api_key_:
 
 
 
-    else:
-        # Warnings for user action required
-        if not uploaded_file and analyze_button:
-            st.warning("Please upload an image.")
