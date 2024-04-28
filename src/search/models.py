@@ -2,7 +2,7 @@ from dataclasses import dataclass, fields
 from datetime import datetime
 from enum import Enum
 import hashlib
-from textwrap import dedent
+from textwrap import dedent, fill
 from typing import Any, List, Dict, Optional, Sequence
 import uuid
 import pandas as pd
@@ -15,6 +15,9 @@ from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.core.storage.storage_context import StorageContext
 import chromadb
+from src.agent.tools.semantic_search import SemanticSearch
+from src.agent.tools.splade_search import SPLADESparseSearch
+from src.search.base import SearchEngineConfig
 
 from src.types import Document
 
@@ -37,6 +40,90 @@ MAX_METRICS_CONTENT = (
 Embedding = list[float]
 
 from pydantic import BaseModel, Field
+
+
+class SubQuestion(BaseModel):
+    """
+    Class representing a single sub-question research topic related to a higher level question.
+
+    """
+
+    chain_of_thought: str = Field(
+        description="Reasoning behind the sub-question with respect to its role in answering the primary question.", 
+        exclude=True
+    )
+    sub_question_topic: str = Field(
+        ...,
+        description="A concise topic title for the sub-question.",
+    )
+    sub_question_query: str = Field(
+        ...,
+        description="A distinct and context rich sub-question that can be directly entered into a vector database, which does similarity search for retrieving documents, in order to help answer a higher level user question.",
+    )
+    sub_question_keywords: List[str] = Field(
+        default_factory=list,
+        description="Extracted keywords suitable for exact-match text search that support the sub-question topic. Can be technical domain-specific items such as form numbers, formal references, codified rules, citations, etc.",
+    )
+
+    def execute(
+        self, semantic_search: SemanticSearch, splade_search: SPLADESparseSearch
+    ) -> pd.DataFrame:
+        """
+        Executes both vector and keyword searches based on the sub-question query and keywords.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the results from both searches.
+        """
+        wrapped_thought = fill(self.chain_of_thought, width=100)
+        logger.info(
+            f"\n\nThought: {wrapped_thought}\nSearch topic: {self.sub_question_topic}"
+        )
+        logger.info(f"Running vector (OpenAI) search: {self.sub_question_query}")
+        vector_results = semantic_search.query_similar_documents(
+            self.sub_question_query, top_k=10
+        )
+
+        # Initialize an empty DataFrame for SPLADE results
+        splade_results = pd.DataFrame()
+
+        # Check if sub_question_keywords is not None and has valid keywords
+        if self.sub_question_keywords and any(self.sub_question_keywords):
+            keywords = ", ".join(self.sub_question_keywords)
+            logger.info(f"Running keyword (SPLADE) search: {keywords}")
+            splade_results = splade_search.query_similar_documents(keywords, top_k=10)
+
+        logger.info(
+            f"Returning {len(vector_results)} records from vector search and {len(splade_results)} from keywords"
+        )
+        return vector_results, splade_results
+
+
+class MultiSearch(BaseModel):
+    """
+    Class representing multiple sub-questions that are mutually exclusive and
+    collectively exhaustive in relation to an input user question.
+
+    Args:
+        searches (List[SubQuestion]): The list of sub-questions.
+    """
+
+    searches: List[SubQuestion] = Field(
+        ...,
+        description="List of sub-questions and searches to perform.",
+    )
+
+    def execute(
+        self, semantic_search: SemanticSearch, splade_search: SPLADESparseSearch
+    ) -> pd.DataFrame:
+        """Helper method to run and combine vector &/or splade searches."""
+        vector_results = []
+        splade_results = []
+        for search in self.searches:
+            vector_res, splade_res = search.execute(semantic_search, splade_search)
+            
+            vector_results.append(vector_res)
+            splade_results.append(splade_res)
+        return vector_results, splade_results
 
 
 class Filter(BaseModel):
@@ -81,6 +168,7 @@ class SearchType(str, Enum):
     SEMANTIC = "semantic"
     HYBRID = "hybrid"
     SPLADE = "splade"
+    OTHER = "other"
 
 
 class QueryScreening(BaseModel):
@@ -119,6 +207,27 @@ class BaseFilter(BaseModel):
     @property
     def filter_dict(self):
         return {self.filter_key: self.filter_value}
+    
+    
+    def filter_df(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Filters the given DataFrame based on the (LLM) defined filter using LanceDB.
+
+        Args:
+            df (pd.DataFrame): The DataFrame to be filtered.
+
+        Returns:
+            pd.DataFrame: The filtered DataFrame.
+        """
+        if not self.filter_key:
+            logger.info(f"No filters have been set! Returning input DataFrame.")
+            return df
+        else:
+            logger.info(f"Input DataFrame has {len(df):,} rows")
+            logger.info(f"Applying filter(s): {self.filter_dict}")
+            result_df = df[df[self.filter_key]==self.filter_value]
+            logger.info(f"After filtering the DataFrame has {len(result_df):,} rows")
+            return result_df
 
 
 
@@ -289,9 +398,9 @@ def text_nodes_to_dataframe(
     return pd.DataFrame(data)
 
 
-def dataframe2documents(df):
+def dataframe2documents(df: pd.DataFrame):
     loader = DataFrameLoader(
-        df[["context", "id", "citation", "name_abbreviation", "court_name"]],
+        data_frame=df,
         page_content_column="context",
     )
     docs = loader.load()
@@ -469,22 +578,23 @@ class IndexFilters(BaseFilters):
 
 
 class ChunkMetric(BaseModel):
+    source: str
     document_id: str
     score: float
     rank: int
-
-
-class SearchQuery(BaseModel):
+    
+class QueryPlanConfig(BaseModel):
+    """A container class representing a query plan."""
     query: str
     filters: Tag | List[Tag] | None = None
     num_hits: int = 25
-    search_type: SearchType = SearchType.HYBRID
     rerank: bool = False
     num_rerank: int | None = 10
     llm_chunk_filter: bool = False
     max_llm_filter_chunks: int = 10
-    subquestions: List[str] | SubQuestionList | None = None
+    subquestions: Any | None = None
     query_eval: QueryScreening | None = None
+    search_configs: List[SearchEngineConfig] | None = None
 
     model_config = ConfigDict(
         frozen=True,
@@ -493,27 +603,19 @@ class SearchQuery(BaseModel):
 
 
 class SearchRequest(BaseModel):
-    """Input to the SearchPipeline."""
-
+    """Input to the search pipeline."""
     query: str
-    search_type: SearchType = SearchType.HYBRID
     human_selected_filters: BaseFilters | None = None
     enable_auto_detect_filters: bool | None = None
     enable_query_screening: bool | None = None
     enable_auto_subquestions: bool | None = None
-    hybrid_alpha: float = HYBRID_ALPHA
     rerank: bool | None = None
     llm_chunk_filter: bool | None = None
+    search_configs: List[SearchEngineConfig] | None = None
 
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
     )
-
-
-class RetrievalDetails(BaseModel):
-    filters: BaseFilters | None = None
-    enable_auto_detect_filters: bool | None = None
-
 
 class SearchDoc(BaseModel):
     document_id: str

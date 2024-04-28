@@ -64,27 +64,41 @@ class DocJoinerDF:
         """
         # Assign unique IDs based on document text
         for df in dataframes:
-            df["_internal_id"] = df[text_column].apply(
+            df["_text_hash"] = df[text_column].apply(
                 lambda x: hashlib.md5(x.encode()).hexdigest()
+            )
+        # Assign unique IDs based on document text and original index
+        for i, df in enumerate(dataframes):
+            df["_original_index"] = df.index
+            df["_df_index"] = i
+            df["_internal_id"] = df.apply(
+                lambda row: f"{i}_{row.name}_{hashlib.md5(row[text_column].encode()).hexdigest()}",
+                axis=1,
             )
 
         if self.join_mode == "concatenate":
-            output_df = self._concatenate(dataframes, "_internal_id")
+            output_df = self._concatenate(dataframes, "_text_hash")
         elif self.join_mode == "reciprocal_rank_fusion":
-            output_df = self._reciprocal_rank_fusion(dataframes, "_internal_id")
+            output_df = self._reciprocal_rank_fusion(dataframes, "_text_hash")
         elif self.join_mode == "merge":
-            output_df = self._merge(dataframes, "_internal_id")
+            output_df = self._merge(dataframes, "_text_hash")
 
         if self.top_k:
             output_df = output_df.nlargest(self.top_k, "score")
 
-        # Drop the internal ID column before returning the final DataFrame
-        output_df.drop(columns=["_internal_id"], inplace=True)
+        # Set the index of the output DataFrame to the original index values
+        output_df["_original_index"] = output_df["_internal_id"].apply(
+            lambda x: int(x.split("_")[1])
+        )
+        output_df.set_index("_original_index", inplace=True)
+
+        # Drop the temporary columns before returning the final DataFrame
+        output_df.drop(columns=["_internal_id", "_df_index", "_text_hash"], inplace=True)
 
         return output_df
 
     def _concatenate(
-        self, dataframes: List[pd.DataFrame], id_column: str = "_internal_id"
+        self, dataframes: List[pd.DataFrame], id_column: str = "_text_hash"
     ) -> pd.DataFrame:
         """
         Concatenate multiple DataFrames and retain the record with the highest score for duplicate records.
@@ -126,7 +140,7 @@ class DocJoinerDF:
         return final_df
 
     def _reciprocal_rank_fusion(
-        self, dataframes: List[pd.DataFrame], id_column: str = "_internal_id"
+        self, dataframes: List[pd.DataFrame], id_column: str = "_text_hash"
     ) -> pd.DataFrame:
         """
         Merge a list of DataFrames and assign scores based on reciprocal rank fusion.
@@ -167,7 +181,7 @@ class DocJoinerDF:
         return result_df
 
     def _merge(
-        self, dataframes: List[pd.DataFrame], id_column: str = "_internal_id"
+        self, dataframes: List[pd.DataFrame], id_column: str = "_text_hash"
     ) -> pd.DataFrame:
         """
         Merge a list of DataFrames and calculate a weighted sum of the scores to deduplicate records.

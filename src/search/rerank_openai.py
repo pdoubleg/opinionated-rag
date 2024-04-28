@@ -18,7 +18,6 @@ On calculating 'relevance':
 from dotenv import load_dotenv
 
 load_dotenv()
-from math import exp
 import openai
 
 from src.utils.logging import setup_colored_logging
@@ -27,30 +26,31 @@ logger = setup_colored_logging(__name__)
 
 client = openai.OpenAI()
 
-FEW_SHOT_EXAMPLE = """Given a passage and a question, predict whether the passage includes an answer to the question by producing either `Yes` or `No`.
+FEW_SHOT_EXAMPLE = """Context: Given a user query and a search result, determine whether the search result is relevant to the user query. Answer by producing either `Yes` or `No`. 
+The query pertains to legal issues within the insurance sector, emphasizing the nuances of different policies, case law, and statutes, and their applicable scenarios.
 
-Passage: Its 25 drops per ml, you guys are all wrong. If it is water, the standard was changed 15 - 20 years ago to make 20 drops = 1mL. The viscosity of most things is temperature dependent, so this would be at room temperature. Hope this helps.
-Query: how many eye drops per ml
-Does the passage answer the query?
-Answer: Yes
-
-Passage: RE: How many eyedrops are there in a 10 ml bottle of Cosopt? My Kaiser pharmacy insists that 2 bottles should last me 100 days but I run out way before that time when I am using 4 drops per day.In the past other pharmacies have given me 3 10-ml bottles for 100 days.E: How many eyedrops are there in a 10 ml bottle of Cosopt? My Kaiser pharmacy insists that 2 bottles should last me 100 days but I run out way before that time when I am using 4 drops per day.
-Query: how many eye drops per ml
-Does the passage answer the query?
+Passage: Commercial property insurance typically covers roof damage on an actual cash value basis, meaning a deduction for depreciation is applied which is non-recoverable.
+Query: Is damage from a fallen tree covered under standard homeowners insurance?
+Is the passage relevant the query?
 Answer: No
 
-Passage: : You can transfer money to your checking account from other Wells Fargo. accounts through Wells Fargo Mobile Banking with the mobile app, online, at any. Wells Fargo ATM, or at a Wells Fargo branch. 1 Money in — deposits.
-Query: can you open a wells fargo account online
-Does the passage answer the query?
-Answer: No
-
-Passage: You can open a Wells Fargo banking account from your home or even online. It is really easy to do, provided you have all of the appropriate documentation. Wells Fargo has so many bank account options that you will be sure to find one that works for you. They offer free checking accounts with free online banking.
-Query: can you open a wells fargo account online
-Does the passage answer the query?
+Passage: The HO3 homeowners policy covers tree damage to structures on an open peril basis, however personal property contained inside of a building is covered for named perils only.
+Query: Is damage from a fallen tree covered under standard homeowners insurance?
+Is the passage relevant the query?
 Answer: Yes
+
+Passage: In 578 N.E.2d 926 the court establishes that insurers have a broad duty to defend their insured if the allegations in the underlying complaint potentially fall within the policy’s coverage.
+Query: The complaint alleges that our insured's employee stole belongings from a hotel guest's room. The applicable coverage for the stolen items is unclear, and may be denied under the intentional acts exclusion. Given the coverage issue do we have a duty to defend the insured?
+Is the passage relevant the query?
+Answer: Yes
+
+Passage: 363 Ill. App. 3d 335 clarifies the process for adding an entity as an additional insured under a Comprehensive General Liability (CGL) policy, and principles for filing cross-motions for summary judgment.
+Query: Our insured allowed a friend to drive their rental car, which we cover under a personal auto policy. While driving the friend encountered a hail storm causing cosmetic damage to the rental car. Is the damage covered even though the friend was driving?
+Is the passage relevant the query?
+Answer: No
 """
 
-ZERO_SHOT_EXAMPLE = """Given a passage and a question, predict whether the passage includes an answer to the question by producing either `Yes` or `No`."""
+ZERO_SHOT_EXAMPLE = """Given a passage and a question, predict whether the passage is relevant to the question by producing either `Yes` or `No`."""
 
 
 import pandas as pd
@@ -59,7 +59,7 @@ import pandas as pd
 def generate_gpt_relevance(
     query: str,
     passage: str,
-    instruction: str = ZERO_SHOT_EXAMPLE,
+    instruction: str = FEW_SHOT_EXAMPLE,
     model: str = "gpt-3.5-turbo-16k",
 ) -> float:
     """
@@ -78,7 +78,7 @@ def generate_gpt_relevance(
         float: A relevance score indicating the relevance of the passage to the query.
                A higher score indicates higher relevance.
     """
-    prompt = f"{instruction}\nPassage: {passage}\nQuery: {query}\nDoes the passage answer the query?\nAnswer:"
+    prompt = f"{instruction}\nPassage: {passage}\nQuery: {query}\nIs the passage relevant the query?\nAnswer:"
     response = client.chat.completions.create(
         model=model,
         messages=[{"role": "user", "content": prompt}],

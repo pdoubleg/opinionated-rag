@@ -1,4 +1,5 @@
 import asyncio
+from enum import Enum
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -6,8 +7,10 @@ import torch
 from transformers import AutoTokenizer, AutoModelForMaskedLM
 from typing import List, Optional
 from tqdm import tqdm
+from typing import Any, Dict, List, Tuple, Optional
 
-from src.search.models import SearchType, Filter
+from pydantic import BaseModel, Field
+
 from src.search.base import SearchEngine, SearchEngineConfig, SearchType
 from src.utils.logging import setup_colored_logging
 
@@ -15,6 +18,50 @@ logger = setup_colored_logging(__name__)
 
 
 DATA_PATH = "data/splade.parquet"
+
+
+class Filter(BaseModel):
+    where: Optional[Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="The attribute to filter on and the value to select.",
+    )
+    name: str = Field(default="Filter", description="A display name for the filter.")
+
+    @property
+    def off(self):
+        return None
+
+    @property
+    def display_filter(self) -> str:
+        if self.where is not None:
+            first_key, first_value = next(iter(self.where.items()))
+            s = f"Search Criteria: {first_key.replace('_', ' ').title()} = {first_value}"
+        else:
+            s = "Search Criteria: All States"
+        return s
+
+    @property
+    def filter_key(self) -> str:
+        if self.where is not None:
+            k, _ = next(iter(self.where.items()))
+        else:
+            k = ""
+        return k
+
+    @property
+    def filter_value(self) -> str:
+        if self.where is not None:
+            _, v = next(iter(self.where.items()))
+        else:
+            v = ""
+        return v
+
+class SearchType(str, Enum):
+    KEYWORD = "keyword"
+    SEMANTIC = "semantic"
+    HYBRID = "hybrid"
+    SPLADE = "splade"
+    OTHER = "other"
 
 class SPLADESearchConfig(SearchEngineConfig):
     """Configuration for SPLADE search engine."""

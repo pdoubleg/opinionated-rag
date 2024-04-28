@@ -332,7 +332,7 @@ class AvgSalePrice(BaseModel):
     )
 
     def __str__(self):
-        display_string = f"Item Description: {self.item}\n\n"
+        display_string = ""
         pricing_str = f"Average Price (based on {self.count} sold items):\n\n"
         item_str = f"* Item: ${self.price} (${self.min_price} to ${self.max_price})\n\n"
         shipping_str = f"* Shipping: ${self.shipping} (${self.min_shipping} to ${self.max_shipping})\n\n"

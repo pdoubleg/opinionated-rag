@@ -37,7 +37,6 @@ import pandas as pd
 from pydantic import BaseModel, Field
 
 from pydantic_settings import BaseSettings
-from src.search.models import SearchType
 
 from src.utils.gen_utils import DataFrameCache
 from src.utils.logging import setup_colored_logging

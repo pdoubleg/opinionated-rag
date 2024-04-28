@@ -1,6 +1,7 @@
 import asyncio
 import re
 import warnings
+from annotated_types import Gt, Lt
 import instructor
 import openai
 import pandas as pd
@@ -19,11 +20,22 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator, root_validator, validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    model_validator,
+    root_validator,
+    validator,
+)
 
 from typing import Optional, Type, Generic, TypeVar, List, Dict, Any
-from typing_extensions import Self
+from typing_extensions import Annotated, Self
 from datetime import datetime, timedelta
+
+
+def convert_timestamp_to_datetime(timestamp: str) -> str:
+    return datetime.fromtimestamp(int(timestamp)).strftime("%Y-%m-%d")
 
 
 def clean_string(string):
@@ -47,32 +59,34 @@ def extract_citation_numbers_in_brackets(text: str) -> List[str]:
     return citations
 
 
+def clean_string(string):
+    # Remove spaces and special characters using regex
+    string = re.sub("[^A-Za-z0-9]+", "", string)
+    # Convert the string to lowercase
+    string = string.lower()
+    return string
+
+
 def generate_citation_strings(
     citation_numbers: List[str],
     df: pd.DataFrame,
-    opinion_claim_numbers: Optional[List[str]] = None,
+    name_column: str,
+    location_column: str,
+    date_column: str,
+    url_column: str,
 ) -> List[str]:
     result = []
     for citation in citation_numbers:
         i = int(citation) - 1  # convert string to int and adjust for 0-indexing
-        title = df.iloc[i]["llm_title"]
+        title = df.iloc[i][name_column]
         claim_number = df.iloc[i]["id"]
-        # Add footnote style links. These go to the opinion text which has a back link to the citation
-        footnote = f'<sup class="footnote-ref" id="fnref-{i+1}"><a href="#fn-{i+1}">{i+1}</a></sup>'
-        # Don't link to non-existent opinion text
-        if claim_number not in opinion_claim_numbers:
-            footnote = ""
-        # Note: Current code links all cases to USRM PL Navigator Claims system.
-        # TODO: Update links here and in input context string
-
-        claim_number_clean = clean_string(str(claim_number))
-        link = f"={claim_number_clean}"
+        claim_number = clean_string(str(claim_number))
+        link = df.iloc[i][url_column]
         claim_number_formatted = f"[{claim_number}]({link})"
-
-        venue = str(df.iloc[i]["State"])
-        date = "2022 Jan"
+        venue = str(df.iloc[i][location_column])
+        date = str(df.iloc[i][date_column])
         result.append(
-            f"**{[i+1]}** {footnote} *{title}* - {venue}, {date}, Claim Number: {claim_number_formatted}\n\n"
+            f"**{[i+1]}** *{title}* - {venue}, {date}, Claim Number: {claim_number_formatted}\n\n"
         )
     return result
 
@@ -158,7 +172,7 @@ async def aget_llm_fact_pattern_summary(query: str, id_value: str) -> Dict:
         messages=[
             {
                 "role": "system",
-                "content": "You are a world-class query understanding AI. Your task is to generate information dense summaries of user queries such that key information is retained and emphasized to support downstream information retrieval.",
+                "content": "You are a world-class document understanding AI. Your task is to generate highly detailed and information dense summaries of legal text such that key information is retained and emphasized to support downstream information retrieval. Include verbatim substring quotes and specific case law citations as often as possible to support the summaries.",
             },
             {
                 "role": "user",
@@ -171,19 +185,19 @@ async def aget_llm_fact_pattern_summary(query: str, id_value: str) -> Dict:
     return result
 
 
-async def aget_fact_patterns_df(df: pd.DataFrame, text_col: str) -> pd.DataFrame:
+async def aget_fact_patterns_df(df: pd.DataFrame, text_column: str) -> pd.DataFrame:
     """Asynchronously generates fact pattern summaries for a DataFrame using OpenAI's chat completion API.
 
     Args:
         df (pd.DataFrame): The DataFrame containing the text data to summarize.
-        text_col (str): The name of the column in the DataFrame containing the text to summarize.
+        text_column (str): The name of the column in the DataFrame containing the text to summarize.
 
     Returns:
         pd.DataFrame: The original DataFrame merged with the generated fact pattern summaries.
     """
     df["temp_id"] = [str(i) for i in range(len(df))]
     tasks = [
-        aget_llm_fact_pattern_summary(row[text_col], str(row["temp_id"]))
+        aget_llm_fact_pattern_summary(row[text_column], str(row["temp_id"]))
         for _, row in df.iterrows()
     ]
     results = []
@@ -195,6 +209,7 @@ async def aget_fact_patterns_df(df: pd.DataFrame, text_col: str) -> pd.DataFrame
         results.append(result)
     results_df = pd.DataFrame(results)
     merged_df = df.merge(results_df, left_on="temp_id", right_on="temp_id")
+    merged_df.drop(columns=["temp_id"], inplace=True)
     return merged_df
 
 
@@ -278,7 +293,7 @@ def create_formatted_input(
     text_column: str = "body",
     url_column: str = "full_link",
     context_token_limit: int = 3000,
-    instructions: str = """Instructions: Using only the provided search results that are relevant, and starting with the most relevant, write a detailed comparative analysis for a new query. If there are no relevant cases say so, and use one example from the search results to illustrate the uniquness of the new query. ALWAYS cite search results using [[number](URL)] notation after the reference.\n\nNew Query:""",
+    instructions: str = """Instructions: Using only the provided search results that are relevant, and starting with the most relevant, write a detailed comparative analysis for a new query. If there are no relevant cases say so, and use one example from the search results to illustrate the uniqueness of the new query. ALWAYS cite search results using [[number](URL)] notation after the reference.\n\nNew Query:""",
 ) -> str:
     """Creates a formatted input string for the model based on a DataFrame and query.
 
@@ -311,18 +326,47 @@ class ResearchReport(BaseModel):
         description="A legal style research report comparing a new issue or question with similar past issues.",
     )
     citations: Optional[Any] = None
-    
+
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
         extra="allow",
     )
-    
-    @model_validator(mode='after')
+
+    @model_validator(mode="after")
     def extract_citations(self) -> Self:
         cites = extract_citation_numbers_in_brackets(self.research_report)
         self.citations = cites if cites is not None else "No Citations Found"
+        if self.citations == "No Citations Found":
+            raise ValueError(
+                f"Output should contain at least on citation string from the provided context, e.g., `['2']`"
+            )
         return self
-           
+
+    @property
+    def generate_citation_strings(
+        self,
+        df: pd.DataFrame,
+        id_column: str,
+        name_column: str,
+        location_column: str,
+        date_column: str,
+        url_column: str,
+    ) -> List[str]:
+        result = []
+        for citation in self.citations:
+            i = int(citation) - 1  # convert string to int and adjust for 0-indexing
+            title = df.iloc[i][name_column]
+            id_number = df.iloc[i][id_column]
+            id_number = clean_string(str(id_number))
+            link = df.iloc[i][url_column]
+            id_number_formatted = f"[{id_number}]({link})"
+            venue = str(df.iloc[i][location_column])
+            date = str(df.iloc[i][date_column])
+            result.append(
+                f"**{[i+1]}** *{title}* - {venue}, {date}, Claim Number: {id_number_formatted}\n\n"
+            )
+        return result
+
 
 def get_final_answer(formatted_input: str, model_name: str) -> ResearchReport:
     """Gets the final answer from the model based on the formatted input.
@@ -347,6 +391,131 @@ def get_final_answer(formatted_input: str, model_name: str) -> ResearchReport:
                 "role": "system",
                 "content": "You are helpful legal research assistant. Analyze the current legal question, and compare it to the search results of past cases. Using only the provided context, offer insights into how the researcher can reference the relevant past questions to address the new outstanding issue. Do not answer the question or provide opinions, only draw helpful comparisons to the relevant search results. Remember to use markdown links when citing the context, for example [[number](URL)].",
             },
-            {"role": "user", "content": f"Remember to use inline markdown links when citing the context, for example [[number](URL)]. Search Results:\n\n{formatted_input}"},
+            {
+                "role": "user",
+                "content": f"Remember to use inline markdown links when citing the context, for example [[number](URL)]. Search Results:\n\n{formatted_input}",
+            },
         ],
     )
+
+
+class ContextSummary(BaseModel):
+    """A summary analysis of context based on user instructions."""
+
+    summary_analysis: str = Field(
+        ...,
+        description="An information dense factual summary with emphasis on details and nuanced considerations.",
+    )
+    relevance_score: Annotated[int, Gt(0), Lt(11)] = Field(
+        ...,
+        description="An integer score from 1-10 indicating relevance to question.",
+    )
+
+
+summary_prompt = (
+    "Summarize the excerpt below to help determine if it is a relevant reference for a question.\n\n"
+    "Excerpt:----\n\n{context}\n\n----\n\n"
+    "Question: {question}\n\n"
+    "Do not answer the question, instead summarize to give evidence to help "
+    "answer the question. Stay detailed; report specific citations, laws, or "
+    'direct quotes (marked with quotation marks). Reply "Not applicable" if the '
+    "excerpt is irrelevant. At the end of your response, provide an integer score "
+    "from 1-10 indicating relevance to question. Do not explain your score."
+    "\n\nRelevant Information Summary:"
+)
+
+
+def evaluate_context(context: str, question: str, model_name: str) -> ContextSummary:
+    client = instructor.patch(openai.OpenAI())
+    return client.chat.completions.create(
+        model=model_name,
+        response_model=ContextSummary,
+        max_retries=Retrying(
+            stop=stop_after_attempt(5),
+            wait=wait_fixed(1),
+        ),
+        messages=[
+            {
+                "role": "system",
+                "content": "You are helpful legal research AI.",
+            },
+            {
+                "role": "user",
+                "content": summary_prompt.format(context=context, question=question),
+            },
+        ],
+    )
+
+
+async def aget_context_evaluation(
+    context: str, question: str, id_value: str, model_name: str
+) -> Dict:
+    """Asynchronously evaluates the relevance of a context to a question using OpenAI's chat completion API.
+
+    Args:
+        context (str): The context to evaluate.
+        question (str): The question to evaluate the context against.
+        id_value (str): A temporary identifier for the context.
+        model_name (str): The name of the model to use for evaluation.
+
+    Returns:
+        Dict: The context evaluation result along with the temporary identifier.
+    """
+    client = instructor.patch(openai.AsyncOpenAI())
+    response = await client.chat.completions.create(
+        model=model_name,
+        response_model=ContextSummary,
+        max_retries=AsyncRetrying(
+            stop=stop_after_attempt(5),
+            wait=wait_fixed(1),
+        ),
+        messages=[
+            {
+                "role": "system",
+                "content": "You are a helpful legal research AI.",
+            },
+            {
+                "role": "user",
+                "content": summary_prompt.format(context=context, question=question),
+            },
+        ],
+    )
+    result = response.model_dump()
+    result["temp_id"] = id_value
+    return result
+
+
+async def aget_context_evaluations_df(
+    df: pd.DataFrame, question: str, text_column: str, model_name: str
+) -> pd.DataFrame:
+    """Asynchronously evaluates the relevance of contexts in a DataFrame to a question using OpenAI's chat completion API.
+
+    Args:
+        df (pd.DataFrame): The DataFrame containing the context data to evaluate.
+        question (str): The question to evaluate the contexts against.
+        text_column (str): The name of the column in the DataFrame containing the contexts to evaluate.
+        model_name (str): The name of the model to use for evaluation.
+
+    Returns:
+        pd.DataFrame: The original DataFrame merged with the generated context evaluations.
+    """
+    df["temp_id"] = [str(i) for i in range(len(df))]
+    tasks = [
+        aget_context_evaluation(
+            row[text_column], question, str(row["temp_id"]), model_name
+        )
+        for _, row in df.iterrows()
+    ]
+    results = []
+    # Wrap asyncio.as_completed with tqdm for progress tracking
+    for future in tqdm(
+        asyncio.as_completed(tasks),
+        total=len(tasks),
+        desc="Processing context evaluations",
+    ):
+        result = await future
+        results.append(result)
+    results_df = pd.DataFrame(results)
+    merged_df = df.merge(results_df, left_on="temp_id", right_on="temp_id")
+    merged_df.drop(columns=["temp_id"], inplace=True)
+    return merged_df
