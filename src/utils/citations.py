@@ -490,3 +490,61 @@ def get_citation_context_df(
     )
     citation_df.drop_duplicates(inplace=True)
     return citation_df
+
+def add_citation_context_to_df(
+    df: pd.DataFrame, 
+    text_column: str, 
+    citation_column: str, 
+    words_before: int = 512, 
+    words_after: int = 512,
+) -> pd.DataFrame:
+    """
+    Loops over the given DataFrame and applies `get_citation_context` for the specified citation.
+    Adds the resulting context string to the DataFrame as a new column.
+
+    Args:
+        df (pd.DataFrame): The DataFrame to process, expected to contain a 'body' column.
+        citation (str): The citation to search for within the 'body' column.
+
+    Returns:
+        pd.DataFrame: The original DataFrame with an added 'context' column containing the citation context.
+    """
+    # Ensure the 'context' column exists
+    if 'context' not in df.columns:
+        df['context'] = ''
+
+    # Apply the get_citation_context function row-wise
+    for index, row in df.iterrows():
+        cite = row[citation_column]
+        context = get_citation_context(
+            text=row[text_column], 
+            citation=cite, 
+            words_before=words_before, 
+            words_after=words_after,
+        )
+        df.at[index, 'context'] = context
+        df.at[index, 'context_citation'] = cite
+
+    return df
+
+def filter_frequent_citations(citation_table: pd.DataFrame, min_occurrences: int = 10) -> pd.DataFrame:
+    """
+    Filters the citation table to only include citations that appear at least a specified number of times.
+    
+    Args:
+        citation_table (pd.DataFrame): The citation table to filter.
+        min_occurrences (int): The minimum number of occurrences for a citation to be included.
+        
+    Returns:
+        pd.DataFrame: A filtered DataFrame containing only the citations that meet the minimum occurrence criterion.
+    """
+    # Count the occurrences of each citation
+    citation_counts = citation_table['citation'].value_counts()
+    
+    # Filter for citations that occur at least min_occurrences times
+    frequent_citations = citation_counts[citation_counts >= min_occurrences].index
+    
+    # Filter the original citation table to only include these citations
+    filtered_citation_table = citation_table[citation_table['citation'].isin(frequent_citations)]
+    
+    return filtered_citation_table

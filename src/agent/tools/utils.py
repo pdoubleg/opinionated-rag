@@ -389,11 +389,11 @@ def get_final_answer(formatted_input: str, model_name: str) -> ResearchReport:
         messages=[
             {
                 "role": "system",
-                "content": "You are helpful legal research assistant. Analyze the current legal question, and compare it to the search results of past cases. Using only the provided context, offer insights into how the researcher can reference the relevant past questions to address the new outstanding issue. Do not answer the question or provide opinions, only draw helpful comparisons to the relevant search results. Remember to use markdown links when citing the context, for example [[number](URL)].",
+                "content": "You are helpful legal research assistant. Analyze the current legal question, and compare it to the search results of past cases. Using only the provided context, offer insights into how the relevant past cases can help address the new question or issue. Do not answer the question or provide opinions, only draw helpful comparisons to help guide research efforts. Remember to ALWAYS use markdown links when citing the context, for example [[number](URL)].",
             },
             {
                 "role": "user",
-                "content": f"Remember to use inline markdown links when citing the context, for example [[number](URL)]. Search Results:\n\n{formatted_input}",
+                "content": f"Remember to use ALWAYS include markdown citation links when referencing the context, for example [[number](URL)]. Search Results:\n\n{formatted_input}",
             },
         ],
     )
@@ -518,4 +518,5 @@ async def aget_context_evaluations_df(
     results_df = pd.DataFrame(results)
     merged_df = df.merge(results_df, left_on="temp_id", right_on="temp_id")
     merged_df.drop(columns=["temp_id"], inplace=True)
+    merged_df.sort_values(by='relevance_score', ascending=False, inplace=True)
     return merged_df

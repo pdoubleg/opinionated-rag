@@ -1,6 +1,6 @@
-from typing import List
+from typing import List, Tuple
 import openai
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from tqdm.auto import tqdm
 import warnings
 import instructor
@@ -9,6 +9,7 @@ import numpy as np
 import torch
 from transformers import AutoTokenizer, AutoModelForTokenClassification, pipeline
 import lancedb
+from pyarrow.lib import Schema
 from pprint import pprint
 
 from src.utils.logging import setup_colored_logging
@@ -18,11 +19,16 @@ logger = setup_colored_logging(__name__)
 
 class ResolvedImprovedEntities(BaseModel):
     """An improved list of extracted entities."""
-    
+
     entities: str = Field(
         ...,
         description="Accurately resolved and improved entities useful for downstream retrieval. Avoid filler words that do not add value as search input. For example, 'Liberty Mutual Insurance Company' should simply be 'Liberty Mutual'.",
     )
+    @model_validator(mode="before")
+    def ensure_string(cls, values):
+        if 'entities' in values and isinstance(values['entities'], list):
+            values['entities'] = ", ".join(values['entities'])
+        return values
 
 
 class MatchedEntitySearch:
@@ -72,14 +78,26 @@ class MatchedEntitySearch:
         self.tokenizer = AutoTokenizer.from_pretrained(model_id)
         self.model = AutoModelForTokenClassification.from_pretrained(model_id)
         self.nlp = pipeline(
-            "ner", model=self.model, tokenizer=self.tokenizer, aggregation_strategy="max", device=self.device
+            "ner",
+            model=self.model,
+            tokenizer=self.tokenizer,
+            aggregation_strategy="max",
+            device=self.device,
         )
 
         self.db = lancedb.connect(db_path)
         self.tbl = None
-        logger.info(f"Loaded database with tables: {self.db.table_names()}")
+        logger.info(f"Loaded database with tables: {self.table_names}")
+        
+    @property
+    def table_names(self):
+        return self.db.table_names()
+    
+    @property
+    def table_versions(self):
+        return self.tbl.list_versions()
 
-    def create_table(self, table_name: str, data: List[dict], mode: str = 'overwrite'):
+    def create_table(self, table_name: str, data: List[dict], mode: str = "append"):
         """
         Create a new table in the LanceDB database.
 
@@ -89,7 +107,7 @@ class MatchedEntitySearch:
             mode (str): The mode for creating the table ('overwrite' or 'append').
         """
         self.tbl = self.db.create_table(table_name, data, mode=mode)
-        
+
     def open_table(self, table_name: str):
         """
         Open an existing table in the LanceDB database.
@@ -98,8 +116,37 @@ class MatchedEntitySearch:
             table_name (str): The name of the table to open.
         """
         self.tbl = self.db.open_table(table_name)
+        
+        
+    @property
+    def basic_info(self) -> Tuple[int, List[str]]:
+        rows = self.tbl.count_rows()
+        column_names = self.tbl.schema.names
+        return rows, column_names
+    
+    @property
+    def col_info(self) -> List[Tuple[str, any]]:
+        schema: Schema = self.tbl.schema
+        return list(zip(schema.names, schema.types))
+    
+    @property
+    def get_data(self) -> pd.DataFrame:
+        return (
+            self.tbl.search()
+            .limit(-1)  # Fetches all records.
+            .to_pandas()
+        )
+        
+    def delete_table(self, table_name: str):
+        self.db.drop_table(table_name)
 
-    def ingest_data(self, df: pd.DataFrame, table_name: str, batch_size: int = 10, mode: str = 'overwrite'):
+    def ingest_data(
+        self,
+        df: pd.DataFrame,
+        table_name: str,
+        batch_size: int = 10,
+        mode: str = "append",
+    ):
         """
         Ingest data from a DataFrame, extract named entities, resolve them using an LLM, and insert the data into a LanceDB table.
 
@@ -127,7 +174,9 @@ class MatchedEntitySearch:
 
             meta = batch.to_dict(orient="records")
 
-            to_upsert = list(zip(idx, emb, meta, batch["named_entities"], batch["context"]))
+            to_upsert = list(
+                zip(idx, emb, meta, batch["named_entities"], batch["context"])
+            )
             for id, emb, meta, entity, text in to_upsert:
                 temp = {
                     "vector": np.array(emb),
@@ -138,9 +187,9 @@ class MatchedEntitySearch:
                 }
                 data.append(temp)
 
-        if mode == 'overwrite':
+        if mode == "overwrite":
             self.create_table(table_name, data, mode=mode)
-        elif mode == 'append':
+        elif mode == "append":
             if table_name in self.db.table_names():
                 self.open_table(table_name)
                 self.tbl.add(data)
@@ -176,7 +225,9 @@ class MatchedEntitySearch:
         seen = set()
         return [x for x in seq if not (x in seen or seen.add(x))]
 
-    def get_entities_by_type_and_score(self, entities: List[dict], entity_types: List[str], score_threshold: float) -> List[str]:
+    def get_entities_by_type_and_score(
+        self, entities: List[dict], entity_types: List[str], score_threshold: float
+    ) -> List[str]:
         """
         Get entities of specific types within a certain score threshold.
 
@@ -189,9 +240,10 @@ class MatchedEntitySearch:
             List[str]: A list of entities matching the specified types and score threshold.
         """
         entity_name_list = [
-            entity['word']
+            entity["word"]
             for entity in entities
-            if entity['entity_group'] in entity_types and entity['score'] >= score_threshold
+            if entity["entity_group"] in entity_types
+            and entity["score"] >= score_threshold
         ]
         top_entities_distinct = self.deduplicate(entity_name_list)
         top_entities = [item for item in top_entities_distinct if len(item) > 1]
@@ -210,7 +262,9 @@ class MatchedEntitySearch:
         extracted_batch = self.nlp(text_batch)
         entities = []
         for text in extracted_batch:
-            ne = self.get_entities_by_type_and_score(text, entity_types=['ORG', 'LOC'], score_threshold=0.985)
+            ne = self.get_entities_by_type_and_score(
+                text, entity_types=["ORG", "PERSON", "LAW"], score_threshold=0.985
+            )
             entities.append(ne)
         return entities
 
@@ -231,7 +285,7 @@ class MatchedEntitySearch:
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an entity resolution and enhancement AI. Your task is to refine a list of extracted entities by removing, combining, or otherwise improving the text. Make every word count.",
+                    "content": "You are an entity resolution and enhancement AI. Your task is to refine a group of extracted entities by removing, combining, or otherwise improving the text. Make every word count.",
                 },
                 {
                     "role": "user",
@@ -239,32 +293,26 @@ class MatchedEntitySearch:
                 },
             ],
         )  # type: ignore
-        
-    def search(self, query: str, limit: int = 100, strict: bool = False, verbose: bool = False) -> pd.DataFrame:
+
+    def search(
+        self, 
+        query: str, 
+        limit: int = 100, 
+        strict: bool = False, 
+        verbose: bool = False,
+        distinct_column: str | None = None,
+    ) -> pd.DataFrame:
         """
         Search the LanceDB table for relevant results based on the query and extracted entities.
-
-        This method performs the following steps:
-        1. Extracts named entities from the query using the NER pipeline.
-        2. Resolves and refines the extracted entities using an LLM.
-        3. Retrieves the embedding for the query.
-        4. Searches the LanceDB table for relevant results based on the embedding similarity.
-        5. Calculates the match count between the query entities and the entities in each result.
-        6. Sorts the results based on the match count and vector similarity.
 
         Args:
             query (str): The search query.
             limit (int, optional): The maximum number of search results to return. Defaults to 100.
-            strict (bool, optional): If True, performs strict matching of entities. Defaults to False.
+            strict (bool, optional): If True, performs strict (phrase) matching of entities. Defaults to False (word).
             verbose (bool, optional): If True, logs additional information. Defaults to False.
 
         Returns:
             pd.DataFrame: A DataFrame containing the search results, sorted by match count and vector similarity.
-
-        Example:
-            >>> query = "What is the capital of France?"
-            >>> search_results = search.search(query, limit=100)
-            >>> search_results.head() # results will contain 'France' or 'france'
         """
         ne = self.extract_named_entities([query])
         resolved_batch = [self.resolve_entities(", ".join(t)) for t in ne]
@@ -273,32 +321,44 @@ class MatchedEntitySearch:
         xq = self.get_embedding(query)
         xdf = self.tbl.search(np.array(xq)).limit(limit).to_pandas()
         xdf["score"] = 1 - xdf["_distance"]
-        
+
         res = []
-        
+
         if strict:
             for _, row in xdf.iterrows():
-                row_entities = set(row["named_entities"].lower().split(', '))
-                query_entities = set(processed_entities[0].lower().split(', '))
+                row_entities = set(row["named_entities"].lower().split(", "))
+                query_entities = set(processed_entities[0].lower().split(", "))
                 match_count = len(query_entities.intersection(row_entities))
-                if match_count > 0:
-                    res.append((row['context'], row['id'], match_count))
+                res.append(
+                    (row["context"], row["id"], row["named_entities"], match_count)
+                )
         else:
             for _, row in xdf.iterrows():
-                match_count = sum(1 for i in processed_entities[0].lower().split(', ') if i in row["named_entities"].lower())
-                if match_count > 0:
-                    res.append((row['context'], row['id'], match_count))
+                match_count = sum(
+                    1
+                    for i in processed_entities[0].lower().split(", ")
+                    if i in row["named_entities"].lower()
+                )
+                res.append(
+                    (row["context"], row["id"], row["named_entities"], match_count)
+                )
 
-        res.sort(key=lambda x: x[2], reverse=True)
+        res.sort(key=lambda x: x[3], reverse=True)
 
-        idx_list = [r[1] for r in res]
-        df_out = xdf[xdf["id"].isin(idx_list)].copy()
+        df_out = pd.DataFrame(
+            res, columns=["context", "id", "named_entities", "match_count"]
+        )
+        df_out = df_out.merge(xdf[["id", "score"]], on="id", how="left")
+        df_out = df_out.sort_values(
+            by=["match_count", "score"], ascending=[False, False]
+        )
+        if distinct_column is not None:
+            df_out.drop_duplicates(subset=[distinct_column], keep='first', inplace=True)
 
-        df_out["match_count"] = [r[2] for r in res]
-        df_out = df_out.sort_values(by=["match_count", "score"], ascending=[False, False])
         if verbose:
             logger.info(f"Found {len(df_out)} matches")
             logger.info(f"Extracted Named Entities: {processed_entities}")
+
         return df_out
 
 

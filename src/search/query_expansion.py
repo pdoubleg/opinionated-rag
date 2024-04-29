@@ -125,14 +125,13 @@ class Document(BaseModel):
     
     
 class BaseLoader(ABC):
-    """Interface for Document Loader.
+    """Interface for Document Loader, adapted from LangChain for pydantic v2.
 
     Implementations should implement the lazy-loading method using generators
     to avoid loading all Documents into memory at once.
 
     `load` is provided just for user convenience and should not be overridden.
     """
-
     # Sub-classes should not implement this method directly. Instead, they
     # should implement the lazy load method.
     def load(self) -> List[Document]:
