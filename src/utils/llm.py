@@ -93,16 +93,6 @@ def prompt(
     """
     Generate a response from a prompt using the OpenAI API.
     """
-
-    if not openai.api_key:
-        sys.exit(
-            """
-ERORR: OpenAI API key not found. Please export your key to OPENAI_API_KEY
-Example bash command:
-    export OPENAI_API_KEY=<your openai apikey>
-            """
-        )
-
     response = openai.chat.completions.create(
         model=model,
         messages=[
