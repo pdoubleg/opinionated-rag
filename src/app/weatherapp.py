@@ -16,8 +16,6 @@ from pydantic import BaseModel, ConfigDict, HttpUrl, model_validator
 import requests
 from PIL import Image
 from dotenv import load_dotenv
-from langchain_openai.llms import OpenAI
-from langchain.agents import load_tools, initialize_agent, AgentType
 from openai.types.images_response import ImagesResponse
 
 load_dotenv()
@@ -372,7 +370,7 @@ def image_gen_prompt(
         messages=[
             {
                 "role": "system",
-                "content": "You are a master of the visual arts, adept at vividly describing locations while emphasizing the effects of the weather. You will receive a CITY and a WEATHER REPORT. Use then to make am awesome Dalle-3 prompt that reflects the actual weather, but make it extreme and try to incorporate elements of the city if they are known. We really want the user to **feel** the weather in their home town. Make the prompt sound like a short story so do not say 'generate an image'. Make sure to keep it under 4000 characters",
+                "content": "You are a master of the visual arts, adept at vividly describing locations while emphasizing the effects of the weather. You will receive a CITY and a WEATHER REPORT, along with important USER_NOTES. Use then to make am awesome Dalle-3 prompt that emphasizes the weather, make it extreme and try to incorporate elements of the city if they are known. We really want the user to **feel** the weather in their home town. Make the prompt sound like a short story so do not say 'generate an image'. Make sure to keep it under 4000 characters",
             },
             {
                 "role": "user",
@@ -384,11 +382,12 @@ def image_gen_prompt(
 
 
 
-def run_weather_app(weather_agent):
+def run_weather_app():
     """ Run the Streamlit app for weather forecasting. """
     st.markdown('# Weather Forecast', unsafe_allow_html=True)
     # TODO: Add option to search by zip code
     city = ui.input(default_value=None, type='text', placeholder="Enter a city name:", key="city_input")
+    notes = ui.input(default_value=None, type='text', placeholder="Add some notes:", key="notes_input")
 
     if ui.button('Get Weather', key="clk_btn", className="bg-cyan-950 text-white"):
         if city:
@@ -398,7 +397,7 @@ def run_weather_app(weather_agent):
             full_report = ""
             report_message_placeholder = st.empty()
             weather_report_stream = prompt(
-                prompt=f"Please concisely summarize the following weather report. Include a concise narrative with highlights and any helpful suggestions, and a markdown table summary. Here is the report: {report}"
+                prompt=f"Please concisely summarize the following weather report. Include a concise narrative with highlights and end with a markdown table summary. Also please note the following important user feedback: **{notes}**\n\nHere is the report: {report}"
             )
             for chunk in weather_report_stream:
                 if chunk.choices[0].delta.content is not None:
@@ -412,7 +411,7 @@ def run_weather_app(weather_agent):
             with st.status(label="dreaming about the weather ...", expanded=False) as status:
                 full_response = ""
                 message_placeholder = st.empty()
-                dalle3_prompt_stream = image_gen_prompt(f"Please help me write an awesome prompt for Dalle-3 that depicts the weather in {city}. Here is the weather report, and please be mindful of the season we are in based on the report. Here is the report: {report}")
+                dalle3_prompt_stream = image_gen_prompt(f"Please help write an awesome prompt for Dalle-3 that depicts the weather in {city}. Also please note the following important user feedback: **{notes}**\n\nHere is the weather report, and please be mindful of the season we are in based on the report. Here is the report: {report}")
                 for chunk in dalle3_prompt_stream:
                     if chunk.choices[0].delta.content is not None:
                         response = chunk.choices[0].delta.content
@@ -433,5 +432,4 @@ def run_weather_app(weather_agent):
             st.error("Please enter a city name to check the weather.")
 
 if __name__ == '__main__':
-    weather_agent = initialize_weather_agent()
-    run_weather_app(weather_agent)
+    run_weather_app()

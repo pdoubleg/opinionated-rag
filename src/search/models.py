@@ -240,19 +240,15 @@ class CitationInformation(BaseModel):
     )
     summary: str = Field(
         ...,
-        description="A fact-focused summary of the citation's scope of authority as evidenced by its past use.",
+        description="A fact-focused summary of the citation's scope of authority as evidenced by its use in the context.",
     )
     questions: List[str] = Field(
         default_factory=list,
         description="A list of named-entity-free generalized questions, or potential questions the cited case can help answer or address. Do NOT reference specific entities, but rather the broader idea, theory or concept.",
     )
-    keywords: List[str] = Field(
-        default_factory=list,
-        description="A correctly resolved list of important keywords from the Context. Group similar topics together.",
-    )
     recency: Optional[str] = Field(
         None,
-        description="Optional summary of changes in the interpretation or use of the cited case with a focus on the most recent (listed toward the end of the Context) texts.",
+        description="Optional notes on changes to the interpretation or use of the cited case based on the context dates.",
     )
 
     def __str__(self) -> str:
@@ -261,7 +257,6 @@ class CitationInformation(BaseModel):
 
         summary_wrapped = fill(self.summary, width=100)
         questions_formatted = "\n".join([f"- {q}" for q in self.questions])
-        keywords_wrapped = fill(", ".join(self.keywords), width=100)
         recency_wrapped = (
             fill(self.recency, width=100) if self.recency else "No recent observations."
         )
@@ -269,7 +264,6 @@ class CitationInformation(BaseModel):
             f"Citation: {self.citation}\n"
             f"Summary:\n{summary_wrapped}\n"
             f"Questions:\n{questions_formatted}\n"
-            f"Keywords:\n{keywords_wrapped}\n"
             f"Recency:\n{recency_wrapped}"
         )
 
