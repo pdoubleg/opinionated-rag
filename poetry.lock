@@ -4135,13 +4135,13 @@ files = [
 
 [[package]]
 name = "instructor"
-version = "1.2.5"
+version = "1.2.6"
 description = "structured outputs for llm"
 optional = false
 python-versions = "<4.0,>=3.9"
 files = [
-    {file = "instructor-1.2.5-py3-none-any.whl", hash = "sha256:646dc37928981840239c276ee9e36e2cef7169774b7215f79a3e61eba6d097ca"},
-    {file = "instructor-1.2.5.tar.gz", hash = "sha256:6f5ffa9c7cb6c24766fa12653e4032e5fb43a0bfebada08cd3a58887193a3ffc"},
+    {file = "instructor-1.2.6-py3-none-any.whl", hash = "sha256:c148372c1c2aa12e0cb3b42a8109555769156d8c13c584531b32758f1ad2f69b"},
+    {file = "instructor-1.2.6.tar.gz", hash = "sha256:bfe969251c4f01f7355e49c356f167bfd54523108ef40257aada888402333e5e"},
 ]
 
 [package.dependencies]
@@ -5060,6 +5060,23 @@ files = [
 langchain-core = ">=0.1.46,<0.2.0"
 openai = ">=1.24.0,<2.0.0"
 tiktoken = ">=0.5.2,<1"
+
+[[package]]
+name = "langchain-text-splitters"
+version = "0.0.1"
+description = "LangChain text splitting utilities"
+optional = false
+python-versions = ">=3.8.1,<4.0"
+files = [
+    {file = "langchain_text_splitters-0.0.1-py3-none-any.whl", hash = "sha256:f5b802f873f5ff6a8b9259ff34d53ed989666ef4e1582e6d1adb3b5520e3839a"},
+    {file = "langchain_text_splitters-0.0.1.tar.gz", hash = "sha256:ac459fa98799f5117ad5425a9330b21961321e30bc19a2a2f9f761ddadd62aa1"},
+]
+
+[package.dependencies]
+langchain-core = ">=0.1.28,<0.2.0"
+
+[package.extras]
+extended-testing = ["lxml (>=5.1.0,<6.0.0)"]
 
 [[package]]
 name = "langcodes"
@@ -7576,6 +7593,63 @@ files = [
 ]
 
 [[package]]
+name = "pcst-fast"
+version = "1.0.10"
+description = "A fast implementation of the Goemans-Williamson scheme for the prize-collecting Steiner tree / forest problem."
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "pcst_fast-1.0.10-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:f8aeb0e1fb02ad3c0dc531e4d032290484bd0e17e3b39f75671245f99c62d866"},
+    {file = "pcst_fast-1.0.10-cp310-cp310-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:04bccd7cbf6f6347f2ee2be533af28f6a4322a59522532dc1102a282c2adbaea"},
+    {file = "pcst_fast-1.0.10-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:baef36acd74705123c8af510089ff47f3b12639305f413e0cd727c76150102f4"},
+    {file = "pcst_fast-1.0.10-cp310-cp310-musllinux_1_1_i686.whl", hash = "sha256:78bd566bf369ca1683c8cc0978c31d1f634eed940a90ddfe7db65536e6ffefa5"},
+    {file = "pcst_fast-1.0.10-cp310-cp310-musllinux_1_1_x86_64.whl", hash = "sha256:3aaf8567fbfac8a2977883e7b4552930d3da9940e4b9e85c245af8ada283c9d7"},
+    {file = "pcst_fast-1.0.10-cp310-cp310-win32.whl", hash = "sha256:96a9f7690672430fbb4f5730cae726ab4bf16704f8d976908b1adf49378020ec"},
+    {file = "pcst_fast-1.0.10-cp310-cp310-win_amd64.whl", hash = "sha256:9e2cbf3bc31b347bfbe4806e983daeede07b1ca0c7a23a5d0a858cfdd2c64b95"},
+    {file = "pcst_fast-1.0.10-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:2fae83754e1f39b0d944baaf1e65bdc1eb42f8cb463665155c43c55113075fe7"},
+    {file = "pcst_fast-1.0.10-cp311-cp311-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:0a1eea51d864dbdea7197c60bf0da099117c550944705d089633b0677bb04195"},
+    {file = "pcst_fast-1.0.10-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:fa00282b9386fe9221a7fe91ea4591e80fbf4c7a306ee0b17af9748fb02edb2d"},
+    {file = "pcst_fast-1.0.10-cp311-cp311-musllinux_1_1_i686.whl", hash = "sha256:2c8d75427b939287df78ce625b1484c9d44173c84ac7b86b846a1e8fce3d6468"},
+    {file = "pcst_fast-1.0.10-cp311-cp311-musllinux_1_1_x86_64.whl", hash = "sha256:a97c2468a82a2c4e79dafcc31bfab31655dd4c420e6be6aa7931b9fe9e6d2e0f"},
+    {file = "pcst_fast-1.0.10-cp311-cp311-win32.whl", hash = "sha256:9eb5234ec3938e28fabf2941102c57e40b92ee10b666d86c239b9109dab2eccc"},
+    {file = "pcst_fast-1.0.10-cp311-cp311-win_amd64.whl", hash = "sha256:a99905816a06e9c3a38f4ee2641740783b76d367e3acebade58716342cd087be"},
+    {file = "pcst_fast-1.0.10-cp312-cp312-macosx_10_9_x86_64.whl", hash = "sha256:375990478236bde3b40925a3dcc279a9dc8bb061db01e79b23c47c5578a32df3"},
+    {file = "pcst_fast-1.0.10-cp312-cp312-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:6b3aa1cc8a544e9390584cd0453280ce5da3b93cedbc1b7623b439c40838ddb6"},
+    {file = "pcst_fast-1.0.10-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:a051b58d66eeee139a4f4b274467fb737074447cabeb5d4360d31be3b7c6530a"},
+    {file = "pcst_fast-1.0.10-cp312-cp312-musllinux_1_1_i686.whl", hash = "sha256:837be0ca99f3417b35c873046a0b22d94de309960f3106eb8fb1453b705ad85d"},
+    {file = "pcst_fast-1.0.10-cp312-cp312-musllinux_1_1_x86_64.whl", hash = "sha256:da194e710fa847aa7707ef9fed391b9a08fafa0b6d681a8846a9cc77d26bffca"},
+    {file = "pcst_fast-1.0.10-cp38-cp38-macosx_10_9_x86_64.whl", hash = "sha256:c2772a5e01518c7602651a601cb84d4399813325ff879d3bd09ad3c46ab51f6e"},
+    {file = "pcst_fast-1.0.10-cp38-cp38-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:1fcddaac0523a765500d6b6a789e66c4eb9edc39e2b150c73ed22a02534a0733"},
+    {file = "pcst_fast-1.0.10-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:405ebed6209ff2bc0a89ab934cb02d602f5261bc6063a57cbcb6b1f7c3d7e442"},
+    {file = "pcst_fast-1.0.10-cp38-cp38-musllinux_1_1_i686.whl", hash = "sha256:f017207bc4620549c48c20bd37729c3313ecce1f71a80c4f361c3a9a19008b60"},
+    {file = "pcst_fast-1.0.10-cp38-cp38-musllinux_1_1_x86_64.whl", hash = "sha256:da5e14ca02a60f1e4242336fcde1944d14665f449e015066b542fa489ba0165b"},
+    {file = "pcst_fast-1.0.10-cp38-cp38-win32.whl", hash = "sha256:062dbc93360b9c793d3fabe0d933b3deec2369b902176d41e12078d7e5ffac27"},
+    {file = "pcst_fast-1.0.10-cp38-cp38-win_amd64.whl", hash = "sha256:0cec628830b752e18b817aaecde54db1bdf74864803eeaffed0d5eda7d2286b2"},
+    {file = "pcst_fast-1.0.10-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:c8f7b73806912e7dfc77e089567187538153fd3473e2bcc74551273a36c8a8b4"},
+    {file = "pcst_fast-1.0.10-cp39-cp39-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:915fee442fb618a8cac01e47d2d84baeab7ed44e1d4069ddfb4e88e2073a68f1"},
+    {file = "pcst_fast-1.0.10-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f9aa64605159bb0ba705f0d8ddde56c00b4a30af237b5e56573f7fbee09ffacb"},
+    {file = "pcst_fast-1.0.10-cp39-cp39-musllinux_1_1_i686.whl", hash = "sha256:f5b00b355996fbe30a386f6769d2eb88c70eb79be784b879b7556f87926765aa"},
+    {file = "pcst_fast-1.0.10-cp39-cp39-musllinux_1_1_x86_64.whl", hash = "sha256:8191eb886124098482b8a64d621629ad9eb85e62825e911539e9311d2625ff8c"},
+    {file = "pcst_fast-1.0.10-cp39-cp39-win32.whl", hash = "sha256:62dde8546446d5296cc9d884052cb3f2b7cbbb79ae1e0aa28f56c4622ea24fe1"},
+    {file = "pcst_fast-1.0.10-cp39-cp39-win_amd64.whl", hash = "sha256:25e7ea478f079d5ecbb3e74fcf9ba685a40bc9994eff45cc416fa8c4b0c2681b"},
+    {file = "pcst_fast-1.0.10-pp310-pypy310_pp73-macosx_10_9_x86_64.whl", hash = "sha256:a2e806d38aca45ac34c8df9dea1f40b84c9f040728b1953f1935182b1a62c41d"},
+    {file = "pcst_fast-1.0.10-pp310-pypy310_pp73-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:7abd9b2ccfb0653d74f046e590f758f54188c127823dcafd74eeb276ccb8a705"},
+    {file = "pcst_fast-1.0.10-pp310-pypy310_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:41f294f7a76053293ac89d6d26f0a069fe3f27a2bb26d79df16d20a75d1b099b"},
+    {file = "pcst_fast-1.0.10-pp38-pypy38_pp73-macosx_10_9_x86_64.whl", hash = "sha256:bfb3f2d52dec4829fac19839101fa62209d1135dd540c64b352a579124cfc3c5"},
+    {file = "pcst_fast-1.0.10-pp38-pypy38_pp73-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:d1e8800e90113a6d0ce0d910caeb32d9c0ea786bd9b8d1aefb53b15f92e0ee41"},
+    {file = "pcst_fast-1.0.10-pp38-pypy38_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:50a0e3b2c1153ec7e984b3664e674d228652bce9b6fcb927559ec5b2c36423d9"},
+    {file = "pcst_fast-1.0.10-pp38-pypy38_pp73-win_amd64.whl", hash = "sha256:8f61190789f6fd4a463cd2b6195ecbe8ced521f17af1ad005eacba5cd5918ed4"},
+    {file = "pcst_fast-1.0.10-pp39-pypy39_pp73-macosx_10_9_x86_64.whl", hash = "sha256:4548f422af23d625baf419e866d82bfccc41844eef599767dc8923238e000fa3"},
+    {file = "pcst_fast-1.0.10-pp39-pypy39_pp73-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:348a1fc8ce8cf839f6e0024ba5bbc01fdd0d61908e2314516ccc801b0c0beed2"},
+    {file = "pcst_fast-1.0.10-pp39-pypy39_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b23b80c8d0c27d56d9432c659bf7693bbcdc11a65c8a149a07a09ea54ea52446"},
+    {file = "pcst_fast-1.0.10-pp39-pypy39_pp73-win_amd64.whl", hash = "sha256:d66b6ea014b09111402064544133f6510713d2a13be643510236de9b637a1efe"},
+    {file = "pcst_fast-1.0.10.tar.gz", hash = "sha256:3b5694110ce2e004471f383267d5e4ab7fe1ba9828954e8c42560ac1e42b25e6"},
+]
+
+[package.dependencies]
+pybind11 = ">=2.1.0"
+
+[[package]]
 name = "pdf2image"
 version = "1.17.0"
 description = "A wrapper around the pdftoppm and pdftocairo command line tools to convert PDF to a PIL Image list."
@@ -8255,6 +8329,20 @@ files = [
 
 [package.dependencies]
 pyasn1 = ">=0.4.6,<0.7.0"
+
+[[package]]
+name = "pybind11"
+version = "2.12.0"
+description = "Seamless operability between C++11 and Python"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "pybind11-2.12.0-py3-none-any.whl", hash = "sha256:df8d60b94f9e714d81013db233393d430ebf9f3551642b82291cf1b14d1afdbd"},
+    {file = "pybind11-2.12.0.tar.gz", hash = "sha256:5e3c557a84b06b969247630407fc4d985bed157b4253b13153b8e8e165e0c3dc"},
+]
+
+[package.extras]
+global = ["pybind11-global (==2.12.0)"]
 
 [[package]]
 name = "pycocotools"
@@ -11784,6 +11872,37 @@ opt-einsum = ["opt-einsum (>=3.3)"]
 optree = ["optree (>=0.9.1)"]
 
 [[package]]
+name = "torch-geometric"
+version = "2.5.3"
+description = "Graph Neural Network Library for PyTorch"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "torch_geometric-2.5.3-py3-none-any.whl", hash = "sha256:8277abfc12600b0e8047e0c3ea2d55cc43f08c1448e73e924de827c15d0b5f85"},
+    {file = "torch_geometric-2.5.3.tar.gz", hash = "sha256:ad0761650c8fa56cdc46ee61c564fd4995f07f079965fe732b3a76d109fd3edc"},
+]
+
+[package.dependencies]
+aiohttp = "*"
+fsspec = "*"
+jinja2 = "*"
+numpy = "*"
+psutil = ">=5.8.0"
+pyparsing = "*"
+requests = "*"
+scikit-learn = "*"
+scipy = "*"
+tqdm = "*"
+
+[package.extras]
+benchmark = ["matplotlib", "networkx", "pandas", "protobuf (<4.21)", "wandb"]
+dev = ["pre-commit", "torch_geometric[test]"]
+full = ["ase", "captum (<0.7.0)", "graphviz", "h5py", "matplotlib", "networkx", "numba", "opt_einsum", "pandas", "pgmpy", "pynndescent", "pytorch-memlab", "rdflib", "rdkit", "scikit-image", "statsmodels", "sympy", "tabulate", "torch_geometric[graphgym,modelhub]", "torchmetrics", "trimesh"]
+graphgym = ["hydra-core", "protobuf (<4.21)", "pytorch-lightning", "yacs"]
+modelhub = ["huggingface_hub"]
+test = ["onnx", "onnxruntime", "pytest", "pytest-cov"]
+
+[[package]]
 name = "torchvision"
 version = "0.18.0"
 description = "image and video datasets and models for torch deep learning"
@@ -13157,6 +13276,21 @@ files = [
 ]
 
 [[package]]
+name = "yachalk"
+version = "0.1.5"
+description = "🖍️ Terminal string styling done right"
+optional = false
+python-versions = "*"
+files = [
+    {file = "yachalk-0.1.5-py3-none-any.whl", hash = "sha256:fe389be1d574a3be00e0b849f1c0767f81da5bdfed9b122da07e6861e27c1c62"},
+    {file = "yachalk-0.1.5.tar.gz", hash = "sha256:cac3b66a198a280f06adfde82f1604aecd9dd5ffc372a02b4f36d79ec499798a"},
+]
+
+[package.dependencies]
+importlib-resources = "*"
+setuptools = "*"
+
+[[package]]
 name = "yarl"
 version = "1.9.4"
 description = "Yet another URL library"
@@ -13350,4 +13484,4 @@ test = ["pytest"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.12"
-content-hash = "75f3a080a59a086d7b613254e6c41bff8ceefc38bdebf723ab142d52b590a78b"
+content-hash = "96d0b3ba7a34db612eeef8a9f4e6e92968b90935f5cfe8499602fb200cb33ddc"

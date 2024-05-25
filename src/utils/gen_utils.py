@@ -1,5 +1,6 @@
 import asyncio
 from functools import cached_property
+import glob
 import importlib
 import inspect
 import math
@@ -9,11 +10,45 @@ import pandas as pd
 import tiktoken
 import hashlib
 import uuid
-from typing import Any, BinaryIO, Coroutine
+from typing import Any, BinaryIO, Coroutine, Dict
 
 from src.utils.logging import setup_colored_logging
 
 logger = setup_colored_logging(__name__)
+
+
+def load_system_prompts(dir_path: str = "system_prompts") -> Dict[str, str]:
+    """
+    Load system prompts from text files in a directory.
+
+    Args:
+        dir_path (str): The path to the directory containing the system prompt files.
+            Defaults to "system_prompts".
+
+    Returns:
+        Dict[str, str]: A dictionary mapping file names (without extension) to their contents.
+    """
+    system_prompts = {}
+
+    # Iterate over all .txt files in the directory
+    for file_path in glob.glob(os.path.join(dir_path, "*.txt")):
+        # Get the base name of the file (without .txt)
+        base_name = os.path.basename(file_path)
+        file_name = os.path.splitext(base_name)[0]
+
+        # Open the file and read its content
+        with open(file_path, 'r', encoding='utf-8-sig') as file:
+            content = file.read()
+
+        # Store the content in the dictionary
+        system_prompts[file_name] = content
+        # Print the name of the file
+        print(f"Loaded system prompt: {file_name}")
+
+    # Print the keys of the dictionary
+    print(system_prompts.keys())
+
+    return system_prompts
 
 
 def stringify(x: Any) -> str:

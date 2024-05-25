@@ -21,6 +21,30 @@ Embeddings = List[Embedding]
 EmbeddingFunction = Callable[[List[str]], Embeddings]
 
 
+class Ontology(BaseModel):
+    labels: List[str | Dict]
+    relationships: List[str]
+
+    def dump(self):
+        if len(self.relationships) == 0:
+            return self.model_dump(exclude=["relationships"])
+        else:
+            return self.model_dump()
+
+
+class Node(BaseModel):
+    label: str
+    name: str
+
+class Edge(BaseModel):
+    node_1: Node
+    node_2: Node
+    relationship: str
+    metadata: dict = {}
+    order: int | None = None
+ 
+    
+
 @dataclass
 class TurboTool:
     name: str
