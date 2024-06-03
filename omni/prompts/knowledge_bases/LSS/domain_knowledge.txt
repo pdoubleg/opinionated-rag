@@ -1,0 +1,126 @@
+# Employment Disputes
+Handles legal issues concerning current or former employees pursuing legal action against the company.
+Cases include wrongful termination, payment-related disputes, or contractual matters.
+Does not handle discrimination accusations.
+
+# Coverage Team
+Specialized attorneys providing advice on complex claims.
+Assist with policy definitions and their application.
+Conduct case law research.
+Referrals are only for non-litigated matters.
+For litigation, refer to Field Legal.
+
+# Field Legal
+Manages all litigation matters.
+Handles cases referred from the Coverage Team and other departments.
+Specializes in defending the company in court.
+
+# Compliance Team
+Ensures company adherence to legal standards and regulations.
+Handles internal audits and regulatory reviews.
+Provides guidance on compliance-related issues.
+
+# Fraud Investigation Unit
+Investigates suspected insurance fraud cases.
+Works closely with law enforcement and other agencies.
+Provides support for both internal and external fraud matters.
+
+# Subrogation Department
+Recovers funds from third parties responsible for insurance claims.
+Works with other departments to identify subrogation opportunities.
+Manages legal proceedings related to subrogation.
+
+# Product Liability Team
+Deals with claims related to defective products causing harm or damage.
+Provides legal advice and defense strategies.
+Collaborates with product development teams for risk mitigation.
+
+# Environmental Claims Unit
+Handles claims involving environmental damage and pollution.
+Provides expertise in environmental law and regulations.
+Works on cleanup cost recovery and liability defense.
+
+# Professional Liability Group
+Manages claims against professionals for malpractice or negligence.
+Specializes in sectors like healthcare, legal, and financial services.
+Offers defense and settlement negotiation services.
+
+# Construction Defects Team
+Deals with claims related to construction defects and contractor negligence.
+Works with engineers and experts for case assessments.
+Provides litigation and arbitration support.
+
+# Workers' Compensation Legal Team
+Manages claims related to workplace injuries and illnesses.
+Provides legal advice on workers' compensation laws and settlements.
+Collaborates with HR and risk management teams.
+
+# Intellectual Property Group
+Handles cases involving IP rights, including patents, trademarks, and copyrights.
+Provides defense against IP infringement claims.
+Assists in securing and enforcing the company’s IP assets.
+
+# Contractual Disputes Team
+Resolves disputes arising from contracts with vendors, partners, and clients.
+Provides negotiation and litigation support.
+Advises on contract drafting and risk management.
+
+# Mergers & Acquisitions Legal Team
+Provides legal support for mergers, acquisitions, and divestitures.
+Conducts due diligence and risk assessments.
+Handles regulatory approvals and compliance issues.
+
+# Real Estate Legal Services
+Manages legal aspects of property transactions and disputes.
+Provides advice on leases, acquisitions, and zoning laws.
+Works with real estate agents and property managers.
+
+# Bankruptcy and Insolvency Team
+Handles cases involving bankruptcies and insolvencies.
+Provides advice on creditor rights and debt recovery.
+Manages legal proceedings related to bankruptcy.
+
+# Data Privacy and Security Legal Team
+Ensures compliance with data protection laws and regulations.
+Manages data breach responses and investigations.
+Provides guidance on data privacy policies and practices.
+
+# Insurance Defense Team
+Provides defense against claims made under insurance policies.
+Specializes in liability, property, and casualty insurance claims.
+Works with claims adjusters and investigators.
+
+# Regulatory Affairs Team
+Manages relationships with regulatory bodies.
+Ensures compliance with industry regulations.
+Provides guidance on regulatory changes and impacts.
+
+# Employment Benefits Legal Team
+Handles legal issues related to employee benefits and compensation.
+Provides advice on retirement plans, health benefits, and compliance.
+Manages disputes and litigation involving employee benefits.
+
+# International Claims Unit
+Manages claims involving international policies and incidents.
+Provides expertise in international law and cross-border disputes.
+Works with global partners and legal teams.
+
+# Cybersecurity Legal Team
+Provides legal support for cybersecurity incidents and breaches.
+Ensures compliance with cybersecurity regulations.
+Manages legal aspects of cybersecurity policies and protocols.
+
+# Healthcare Liability Team
+Manages claims against healthcare providers and institutions.
+Provides defense and settlement negotiation services.
+Specializes in medical malpractice and healthcare regulations.
+
+# Auto Claims Legal Team
+Handles claims related to auto accidents and vehicle damage.
+Provides legal advice and defense strategies.
+Works with claims adjusters and auto repair experts.
+
+# Property Damage Legal Team
+Manages claims involving property damage from natural disasters, accidents, and other incidents.
+Provides legal support for damage assessments and settlements.
+Collaborates with claims adjusters and repair contractors.

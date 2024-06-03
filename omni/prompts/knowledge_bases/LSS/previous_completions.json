@@ -1,0 +1,270 @@
+[
+    {
+        "input": "i have a case where an employee is disputing",
+        "completions": [
+            "their termination and i need guidance"
+        ],
+        "correct_department": "Employment Disputes",
+        "hits": 8
+    },
+    {
+        "input": "can someone provide advice on compliance issues related to",
+        "completions": [
+            "data privacy and security regulations"
+        ],
+        "correct_department": "Data Privacy and Security Legal Team",
+        "hits": 8
+    },
+    {
+        "input": "can someone assist with a case involving",
+        "completions": [
+            "employee benefits and compensation disputes"
+        ],
+        "correct_department": "Employment Benefits Legal Team",
+        "hits": 8
+    },
+    {
+        "input": "can someone assist with a complex claim",
+        "completions": [
+            "regarding policy definitions and case law research"
+        ],
+        "correct_department": "Coverage Team",
+        "hits": 7
+    },
+    {
+        "input": "can someone help with an environmental damage claim",
+        "completions": [
+            "and provide expertise on environmental law"
+        ],
+        "correct_department": "Environmental Claims Unit",
+        "hits": 7
+    },
+    {
+        "input": "i need legal support for a merger involving",
+        "completions": [
+            "due diligence and risk assessment"
+        ],
+        "correct_department": "Mergers & Acquisitions Legal Team",
+        "hits": 7
+    },
+    {
+        "input": "i need legal advice on a property damage claim involving",
+        "completions": [
+            "a natural disaster"
+        ],
+        "correct_department": "Property Damage Legal Team",
+        "hits": 7
+    },
+    {
+        "input": "i need legal advice on an employment benefits issue involving",
+        "completions": [
+            "retirement plan disputes"
+        ],
+        "correct_department": "Employment Benefits Legal Team",
+        "hits": 7
+    },
+    {
+        "input": "i need legal advice on a claim involving",
+        "completions": [
+            "a defective product"
+        ],
+        "correct_department": "Product Liability Team",
+        "hits": 6
+    },
+    {
+        "input": "i need assistance with a workplace injury claim and",
+        "completions": [
+            "require guidance on workers' compensation laws"
+        ],
+        "correct_department": "Workers' Compensation Legal Team",
+        "hits": 6
+    },
+    {
+        "input": "i need legal advice on a property transaction involving",
+        "completions": [
+            "zoning laws and lease agreements"
+        ],
+        "correct_department": "Real Estate Legal Services",
+        "hits": 6
+    },
+    {
+        "input": "i need assistance with an auto claim involving",
+        "completions": [
+            "a complex accident"
+        ],
+        "correct_department": "Auto Claims Legal Team",
+        "hits": 6
+    },
+    {
+        "input": "can someone provide guidance on an intellectual property issue involving",
+        "completions": [
+            "a patent infringement"
+        ],
+        "correct_department": "Intellectual Property Group",
+        "hits": 6
+    },
+    {
+        "input": "can someone provide guidance on a real estate transaction involving",
+        "completions": [
+            "lease agreements and property acquisition"
+        ],
+        "correct_department": "Real Estate Legal Services",
+        "hits": 6
+    },
+    {
+        "input": "we suspect insurance fraud in a recent claim and need",
+        "completions": [
+            "to know next steps"
+        ],
+        "correct_department": "Fraud Investigation Unit",
+        "hits": 5
+    },
+    {
+        "input": "i need advice on handling a subrogation claim involving",
+        "completions": [
+            "a third-party responsible for an accident"
+        ],
+        "correct_department": "Subrogation Department",
+        "hits": 5
+    },
+    {
+        "input": "i need legal support for a malpractice claim against",
+        "completions": [
+            "a healthcare provider"
+        ],
+        "correct_department": "Professional Liability Group",
+        "hits": 5
+    },
+    {
+        "input": "can someone help with a regulatory compliance issue involving",
+        "completions": [
+            "new industry regulations"
+        ],
+        "correct_department": "Regulatory Affairs Team",
+        "hits": 5
+    },
+    {
+        "input": "can someone help with a healthcare liability claim involving",
+        "completions": [
+            "medical malpractice"
+        ],
+        "correct_department": "Healthcare Liability Team",
+        "hits": 5
+    },
+    {
+        "input": "we need legal support for a case involving",
+        "completions": [
+            "an international insurance claim"
+        ],
+        "correct_department": "International Claims Unit",
+        "hits": 5
+    },
+    {
+        "input": "can someone help with a cybersecurity incident involving",
+        "completions": [
+            "data breach response"
+        ],
+        "correct_department": "Cybersecurity Legal Team",
+        "hits": 5
+    },
+    {
+        "input": "i need help with a construction defect claim and",
+        "completions": [
+            "require legal support"
+        ],
+        "correct_department": "Construction Defects Team",
+        "hits": 4
+    },
+    {
+        "input": "we need guidance on a bankruptcy case involving",
+        "completions": [
+            "a client with significant debts"
+        ],
+        "correct_department": "Bankruptcy and Insolvency Team",
+        "hits": 4
+    },
+    {
+        "input": "i need advice on a contractual dispute involving",
+        "completions": [
+            "a vendor agreement"
+        ],
+        "correct_department": "Contractual Disputes Team",
+        "hits": 4
+    },
+    {
+        "input": "i need legal support for an insurance defense case",
+        "completions": [
+            "involving a liability claim"
+        ],
+        "correct_department": "Insurance Defense Team",
+        "hits": 4
+    },
+    {
+        "input": "i need legal advice on a claim involving",
+        "completions": [
+            "a dangerous product"
+        ],
+        "correct_department": null,
+        "hits": 3
+    },
+    {
+        "input": "i need legal advice on a complex claim involving",
+        "completions": [
+            "intellectual property rights violations"
+        ],
+        "correct_department": null,
+        "hits": 1
+    },
+    {
+        "input": "I need legal advice on a compliance",
+        "completions": [
+            "matter concerning internal audits and regulatory reviews"
+        ],
+        "correct_department": null,
+        "hits": 1
+    },
+    {
+        "input": "I have a complex coverage question and",
+        "completions": [
+            "need assistance with policy definitions and case law research."
+        ],
+        "correct_department": null,
+        "hits": 1
+    },
+    {
+        "input": "I have a complex coverage dispute involving",
+        "completions": [
+            "claims or coverage limits"
+        ],
+        "correct_department": null,
+        "hits": 1
+    },
+    {
+        "input": "whats the best way",
+        "completions": [
+            "to approach a complex legal case involving multiple jurisdictions."
+        ],
+        "hits": 1
+    },
+    {
+        "input": "what do i do with a claim invlving fraud",
+        "completions": [
+            "and need to know the next steps to take."
+        ],
+        "hits": 1
+    },
+    {
+        "input": "which team handles compliance",
+        "completions": [
+            "issues related to data privacy and security regulations"
+        ],
+        "hits": 1
+    },
+    {
+        "input": "which department handles complaint issues regarding data",
+        "completions": [
+            "privacy and security regulations"
+        ],
+        "hits": 1
+    }
+]
