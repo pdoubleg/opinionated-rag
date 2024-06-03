@@ -1,9 +1,12 @@
 import logging
+from typing import List
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+import instructor
 from openai import AsyncOpenAI
+from pydantic import BaseModel, Field
 
 from modules import llm, omnicomplete
 
@@ -25,10 +28,48 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+class AutoCompletions(BaseModel):
+    """Auto-completions for a new user query."""
+    
+    input: str = Field(
+        ...,
+        description="The user provided INPUT_VALUE.",
+    )
+    completions: List[str] = Field(
+        default_factory=list,
+        description="A list of potential completions based on the GENERATION_RULES.",
+    )
+    correct_department: str = Field(
+        ...,
+        description="The predicted department based on ALL available information.",
+    )
+    
+class SearchRequest(BaseModel):
+    body: str
+
 
 @app.get("/")
 async def test():
     return {"hello": "world"}
+
+
+@app.post("/get-pred", response_model=AutoCompletions)
+async def endpoint_function(data: SearchRequest) -> AutoCompletions:
+    client = instructor.from_openai(AsyncOpenAI())
+    
+    prompt = omnicomplete.build_omni_complete_prompt(
+        data.body, topic=topics[topic_index][0], topic_dir=topics[topic_index][1]
+    )
+    response = await client.chat.completions.create(
+        model="gpt-4-turbo",
+        response_model=AutoCompletions,
+        messages=[
+            {"role": "user", 
+             "content": prompt,
+             }
+        ],
+    )
+    return response.model_dump(mode='json')
 
 
 @app.post("/get-autocomplete")
