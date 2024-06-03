@@ -101,6 +101,8 @@ class Item(BaseModel):
     image_base64: Optional[str] = Field(
         None, description="Base64 encoded image content"
     )
+    seller_name: Optional[str] = None
+    seller_url: Optional[HttpUrl | str] = None
     
     def fetch_and_encode_image(self) -> None:
         """
@@ -151,7 +153,7 @@ class eBayProduct(BaseModel):
     
     @model_validator(mode="before")
     def generate_hash(cls, values):
-        unique_string = str(values["ebay_id"])+str(values["item"]["description"])
+        unique_string = str(values["ebay_id"])+str(values["item"])
         values['hash_id'] = hash_text(unique_string)
         return values
     
@@ -657,7 +659,39 @@ def parse_search(response: httpx.Response) -> List[ProductPreviewResult]:
     return previews
 
 
-asession = httpx.Client(
+def parse_product(response: httpx.Response) -> dict:
+    """Parse Ebay's product listing page for core product data"""
+    sel = Selector(response.text)
+    # define helper functions that chain the extraction process
+    css_join = lambda css: "".join(sel.css(css).getall()).strip()  # join all CSS selected elements
+    css = lambda css: sel.css(css).get("").strip()  # take first CSS selected element and strip of leading/trailing spaces
+
+    item = {}
+    item["url"] = css('link[rel="canonical"]::attr(href)')
+    item["price"] = css('.x-price-primary>span::text')
+    item["name"] = css_join("h1 span::text")
+    item["seller_name"] = css_join("[data-testid=str-title] a ::text")
+    item["seller_url"] = css("[data-testid=str-title] a::attr(href)").split("?")[0]
+    item["photos"] = sel.css('.ux-image-filmstrip-carousel-item.image img::attr("src")').getall()  # carousel images
+    item["photos"].extend(sel.css('.ux-image-carousel-item.image img::attr("src")').getall())  # main image
+    # description is an iframe (independant page). We can keep it as an URL or scrape it later.
+    item["description_url"] = css("div.d-item-description iframe::attr(src)")
+    if not item["description_url"]:
+        item["description_url"] = css("div#desc_div iframe::attr(src)")
+    # feature details from the description table:
+    feature_table = sel.css("div.ux-layout-section--features")
+    features = {}
+    for ft_label in feature_table.css(".ux-labels-values__labels"):
+        # iterate through each label of the table and select first sibling for value:
+        label = "".join(ft_label.css(".ux-textspans::text").getall()).strip(":\n ")
+        ft_value = ft_label.xpath("following-sibling::div[1]")
+        value = "".join(ft_value.css(".ux-textspans::text").getall()).strip()
+        features[label] = value
+    item["features"] = features
+    return item
+
+
+session = httpx.Client(
     # for our HTTP headers we want to use a real browser's default headers to prevent being blocked
     headers={
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36 Edg/113.0.1774.35",
@@ -671,8 +705,6 @@ asession = httpx.Client(
     follow_redirects=True,
 )
 
-cache = {}
-
 def eBayWebSearch(
     query,
     category=0,
@@ -685,16 +717,12 @@ def eBayWebSearch(
     # Generate a unique key for the current query parameters
     cache_key = (query, category, items_per_page, sort, alreadySold)
 
-    # Check if the results for these parameters are already in cache
-    if cache_key in cache:
-        return cache[cache_key]
-
     def make_request(page):
         return "https://www.ebay.com/sch/i.html?" + urllib.parse.urlencode(
             {
                 "_nkw": query,
                 "_sacat": category,
-                "_ipg": items_per_page,
+                # "_ipg": items_per_page,
                 "_sop": SORTING_MAP[sort],
                 "_pgn": page,
             }
@@ -709,9 +737,10 @@ def eBayWebSearch(
     else:
         url = make_request(page=1)
     
-    response = asession.get(url)
+    response = session.get(url)
     soup = BeautifulSoup(response.text, "lxml")
-    parcel_ = parse_search(response=response)
+    
+    parcel_search = parse_search(response=response)
 
     data = []
     i = 0
@@ -720,10 +749,15 @@ def eBayWebSearch(
         title = item.select_one(".s-item__title").text
         link = item.select_one(".s-item__link")["href"]
         item_id = link.split("?")[0].split("/")[-1]
-        item_descr_url = f"https://vi.vipr.ebaydesc.com/ws/eBayISAPI.dll?item={item_id}"
-        item_descr_response = session.get(item_descr_url)
-        item_descr_soup = BeautifulSoup(item_descr_response.content, "html.parser")
-        description = item_descr_soup.get_text(strip=True, separator="\n")
+        item_response = session.get(f"https://www.ebay.com/itm/{item_id}")
+        parsed_item = parse_product(item_response)
+        item_descr_url = parsed_item["description_url"]
+        try:
+            item_descr_response = session.get(item_descr_url)
+            item_descr_soup = BeautifulSoup(item_descr_response.content, "html.parser")
+            description = item_descr_soup.get_text(strip=True, separator="\n")
+        except:
+            description = ""
 
         image = item.find("img")
         image_url = image["src"]
@@ -734,17 +768,17 @@ def eBayWebSearch(
             condition = None
             
         try:
-            sale_end_date = parcel_[i]["sale_end_date"]
+            sale_end_date = parcel_search[i]["sale_end_date"]
         except:
             sale_end_date = None
 
         try:
-            list_date = parcel_[i]["list_date"]
+            list_date = parcel_search[i]["list_date"]
         except:
             list_date = None
 
         try:
-            subtitles = parcel_[i]["subtitles"]
+            subtitles = parcel_search[i]["subtitles"]
         except:
             subtitles = None
 
@@ -812,6 +846,16 @@ def eBayWebSearch(
             price = item.select_one(".s-item__price").text
         except:
             price = None
+            
+        try:
+            seller_name = parsed_item["seller_name"]
+        except:
+            seller_name = None
+            
+        try:
+            seller_url = parsed_item["seller_url"]
+        except:
+            seller_url = None
 
         data.append(
             {
@@ -823,6 +867,8 @@ def eBayWebSearch(
                     "price": price,
                     "image_url": image_url,
                     "description": description,
+                    "seller_name": seller_name,
+                    "seller_url": seller_url,
                 },
                 "condition": condition,
                 "top_rated": top_rated,
@@ -840,6 +886,5 @@ def eBayWebSearch(
         )
         i += 1
     search_results = [eBayProduct(**r) for r in data]
-    cache[cache_key] = search_results[1:-1]
     
     return search_results[1:-1]

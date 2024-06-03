@@ -63,9 +63,9 @@ def download_temp_file(file_id: str, suffix: str = None):
     return temp_file.name
 
 
-def format_message(message):
+def format_message_string(message):
     timestamp = (
-        datetime.fromtimestamp(message.created_at).strftime("%I:%M:%S %p").lstrip("0")
+        datetime.fromtimestamp(message.created_at).strftime("%H:%M:%S %p").lstrip("0")
     )
     content = []
     for item in message.content:
@@ -79,8 +79,8 @@ def format_message(message):
                 f"*View attached image: [{local_file_path}]({local_file_path})*"
             )
 
-    for file_id in message.file_ids:
-        content.append(f"Attached file: {file_id}\n")
+    for attachment in message.attachments:
+        content.append(f"Attached file: {attachment}\n")
 
     out_str = f"**{str(message.role.title())}**\n\n"
     out_str = str(timestamp)

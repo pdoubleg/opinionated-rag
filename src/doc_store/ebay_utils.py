@@ -47,7 +47,7 @@ class eBayItems(LanceModel):
     condition: Optional[str] = None
     listing_url: Optional[str] = None
     image_url: Optional[str] = None
-    sale_end_date: Optional[str] = None
+    sale_end_date: Optional[str] = ""
 
     @property
     def image(self):
@@ -152,6 +152,7 @@ def process_ebay_item_image(item: eBayProduct) -> None:
     """
     item.item.fetch_and_encode_image()
     item.download_image()
+
 
 def process_ebay_images_with_threadpool(search_results: List[eBayProduct]) -> None:
     """

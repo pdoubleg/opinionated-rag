@@ -1,8 +1,13 @@
+import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import tempfile
-from typing import List
+from typing import List, Tuple
 from urllib.parse import urlparse
 import instructor
+import lancedb
+import marvin
+import numpy as np
+import pandas as pd
 from pydantic import BaseModel, Field
 import streamlit as st
 import streamlit_shadcn_ui as ui
@@ -15,12 +20,15 @@ import time
 from dotenv import load_dotenv
 from tenacity import Retrying, stop_after_attempt, wait_fixed
 from src.doc_store.ebay_scraper import AverageSalePrice, eBayWebSearch
+from src.doc_store.ebay_utils import deduplicate_products, eBayItems, process_ebay_images_with_async, process_ebay_images_with_threadpool
+from src.doc_store.ebay_scraper import eBayProduct
 
-from src.utils.output import write_md_to_pdf
+from src.utils.output import format_message_string, write_md_to_pdf
 
 load_dotenv()
 import openai
-from metaphor_python import Metaphor
+from marvin.beta.assistants import Assistant, Thread
+from marvin.beta.assistants.formatting import pprint_messages, pprint_run
 
 # from PIL import Image
 from PIL import Image as PILImage
@@ -32,9 +40,15 @@ from bs4 import BeautifulSoup
 from weasyprint import HTML, CSS
 from weasyprint.text.fonts import FontConfiguration
 
+from typing import Callable
+from langchain_openai import ChatOpenAI
+
+from src.search.threadpool import run_functions_tuples_in_parallel
+from src.utils import llm
+
 
 st.set_page_config(
-    page_title="PropertyImageInspect", layout="centered", initial_sidebar_state="auto"
+    page_title="PropertyImageInspect", layout="wide", initial_sidebar_state="auto"
 )
 
 # Streamlit page setup
@@ -59,6 +73,167 @@ class eBayQueryList(BaseModel):
         search_tasks = [str(self.item_name)]
         search_tasks.extend(alternates)
         return search_tasks
+
+
+def search_image_vectors(image_path: str, df: pd.DataFrame, n: int = 10) -> List[eBayItems]:
+    # unique_table_name = f"ebay_{uuid.uuid4().hex}"
+    unique_table_name = "test_table"
+    db = lancedb.connect("./.lancedb")
+    table = db.create_table(unique_table_name, schema=eBayItems, mode='overwrite')
+    table.add(df)
+    query_image = PILImage.open(image_path)
+    res = table.search(query_image) \
+        .limit(n) \
+        .to_pydantic(eBayItems)
+    # db.drop_table(unique_table_name)
+    return res
+      
+        
+def get_similar_listings(search_query: str, image_path: str, n: int = 5, sold: bool=True) -> List[eBayItems]:
+    """
+    Searches for similar eBay listings based on a query and an image.
+
+    Args:
+        search_queries (List[str]): A list of search queries.
+        image_path (str): The path to the image for similarity search.
+        n (int): Number of image results per search query after sorting by image similarity.
+
+    Returns:
+        List[eBayItems]: A list of the best matching listings based on image similarity.
+    """
+    st.toast(f"Searching: {search_query}")
+    search_results = eBayWebSearch(search_query, alreadySold=sold)
+    process_ebay_images_with_threadpool(search_results)
+    search_results = deduplicate_products(search_results)
+    st.markdown(f"Top **{n}** matches based on analysis of **{len(search_results):,}** listings:")
+    df = pd.DataFrame([r.to_data_dict for r in search_results])
+    best_images = search_image_vectors(image_path, df, n)
+
+    return best_images
+
+
+USEFUL_PAT = "Yes useful"
+NONUSEFUL_PAT = "Not useful"
+
+image_comp_prompt = """
+I'm doing some pricing research for the first image and looking for good 'comps' USEFUL as comparison point.  
+Please review and asses whether the second image is similar enough to be USEFUL. Respond with EXACTLY AND ONLY: "Yes useful" or "Not useful"
+"""
+
+def llm_eval_chunk(target_image: str, comp_image: str) -> bool:  
+
+    def _extract_usefulness(model_output: str) -> bool:
+        """Default 'useful' if the LLM doesn't match pattern exactly.
+        This is because it's better to trust the (re)ranking if LLM fails"""
+        if model_output.strip().strip('"').lower() == NONUSEFUL_PAT.lower():
+            return False
+        return True
+
+    model_output = llm.prompt_multi_image_input(
+        prompt=image_comp_prompt,
+        image_paths=[
+            target_image,
+            comp_image,
+        ]
+    )
+
+    return _extract_usefulness(model_output)
+
+
+def llm_batch_eval_chunks(
+    target_image: str, comp_images: list[str], use_threads: bool = True
+) -> list[bool]:
+    if use_threads:
+        functions_with_args: list[tuple[Callable, tuple]] = [
+            (llm_eval_chunk, (target_image, comp_image)) for comp_image in comp_images
+        ]
+
+        print(
+            "Running LLM usefulness eval in parallel (following logging may be out of order)"
+        )
+        parallel_results = run_functions_tuples_in_parallel(
+            functions_with_args, allow_failures=True
+        )
+
+        # In case of failure/timeout, don't throw out the chunk
+        return [True if item is None else item for item in parallel_results]
+
+    else:
+        return [
+            llm_eval_chunk(target_image, comp_image) for comp_image in comp_images
+        ]
+
+
+def filter_chunks(
+    target_image: str,
+    chunks_to_filter: list[eBayItems | eBayProduct],
+    max_llm_filter_chunks: int = 20,
+) -> list[eBayItems | eBayProduct]:
+    """Filters chunks based on whether the LLM thought they were relevant to the query.
+
+    """
+    if isinstance(chunks_to_filter[0], eBayItems):
+        chunks_to_filter = chunks_to_filter[: max_llm_filter_chunks]
+        llm_chunk_selection = llm_batch_eval_chunks(
+            target_image=target_image,
+            comp_images=[chunk.image_url for chunk in chunks_to_filter],
+        )
+        return [
+            chunk
+            for ind, chunk in enumerate(chunks_to_filter)
+            if llm_chunk_selection[ind]
+        ]
+    else:
+        chunks_to_filter = chunks_to_filter[: max_llm_filter_chunks]
+        llm_chunk_selection = llm_batch_eval_chunks(
+            target_image=target_image,
+            comp_images=[str(chunk.item.image_url) for chunk in chunks_to_filter],
+        )
+        return [
+            chunk
+            for ind, chunk in enumerate(chunks_to_filter)
+            if llm_chunk_selection[ind]
+        ]
+        
+
+def thumbnail(image, scale=3):
+    return image.resize(np.array(image.size)//scale)
+
+
+def upscale_image(image: PILImage.Image, scale: int = 3) -> PILImage.Image:
+    """
+    Increase the size of an image while preserving its quality.
+
+    Args:
+        image (Image.Image): The input image to be upscaled.
+        scale (int): The factor by which to scale the image. Default is 3.
+
+    Returns:
+        Image.Image: The upscaled image.
+    """
+    new_size = np.array(image.size) * scale
+    return image.resize(new_size, PILImage.LANCZOS)
+
+
+
+def render_search_results(
+    all_results: List[Tuple[List, List]], 
+    search_query_list: List[str], 
+    query_number: int, 
+    search_type_code: int):
+    search_type_dict = {
+        '0': "eBay's search engine",
+        '1': 'Image Analysis',
+    }
+    search_type = search_type_dict.get(str(search_type_code), None)
+    query = search_query_list[query_number]
+    base_results = all_results[query_number][0]
+    results = all_results[query_number][search_type_code]
+    st.markdown((f"Search for `{query}` returned {len(base_results)} results"))
+    st.markdown((f"Top results based on **{search_type}**:\n"))
+    for result in results:
+        st.image(thumbnail(result.image))
+        st.markdown((str(result)))
 
 
 # Initialize session state for last API key
@@ -150,37 +325,6 @@ if user_dict['email'] or api_key_ in ADMIN_USERS:
 
 
 
-    def display_search(search_results):
-        """
-        Display the search results.
-
-        Args:
-            search_results (list): List of search results.
-        """
-        for result in search_results:
-            st.write(f"Title: {result.title}")
-            st.write(f"URL: {result.url}")
-            st.write(f"Published Date: {result.published_date}")
-            st.markdown("___")
-
-    def display_content(content_results):
-        """
-        Display internet content.
-
-        Args:
-            search_results (list): List of search results.
-        """
-        for result in content_results:
-            st.write(f"Title: {result.title}")
-            st.write(f"URL: {result.url}")
-            st.markdown("**Content:**")
-            st.markdown(f"{result.extract}", unsafe_allow_html=True)
-            st.markdown("___")
-
-    def get_page_contents(search_results):
-        contents_response = metaphor.get_contents(search_results)
-        return contents_response.contents
-
     def clean_html_content(content: str) -> str:
         """
         Clean the HTML content using BeautifulSoup.
@@ -203,99 +347,6 @@ if user_dict['email'] or api_key_ in ADMIN_USERS:
             stripped_content += " " + tag.get_text().strip() + " "
 
         return " ".join(stripped_content.split())
-
-    def create_web_content_string(search_contents: list, char_limit: int = 9000) -> str:
-        """
-        Build context for LLM call.
-
-        Args:
-            search_contents (list): List of search contents.
-            char_limit (int, optional): Total character limit. Defaults to 9000.
-
-        Returns:
-            str: Processed internet content.
-        """
-        total_chars = sum(
-            [len(clean_html_content(item.extract)) for item in search_contents]
-        )
-        internet_content = ""
-
-        for item in search_contents:
-            cleaned_content = clean_html_content(item.extract)
-            item_chars = len(cleaned_content)
-            slice_ratio = item_chars / total_chars
-            slice_limit = int(char_limit * slice_ratio)
-            sliced_content = cleaned_content[:slice_limit]
-
-            internet_content += f"--START ITEM--\nURL: {item.url}\nTITLE: {item.title}\nCONTENT: {sliced_content}\n--END ITEM--\n"
-
-        return internet_content
-
-    def format_for_markdown(text: str) -> str:
-        """
-        Formats the given text for markdown.
-
-        Args:
-            text (str): The text to be formatted.
-
-        Returns:
-            str: The formatted text.
-        """
-        # Split the text into items
-        items = text.split("--END ITEM--")
-
-        # Process each item
-        formatted_items = []
-        for item in items:
-            if item.strip() == "":
-                continue
-
-            # Remove START ITEM tag and split into lines
-            lines = item.replace("--START ITEM--", "").strip().split(" ")
-
-            # Initialize formatted item
-            formatted_item = "\n\n"
-
-            # Add each line with a newline at the end
-            for line in lines:
-                if "URL:" in line or "TITLE:" in line:
-                    formatted_item += "\n" + line
-                elif "CONTENT:" in line:
-                    formatted_item += "\n" + line + "\n"
-                else:
-                    formatted_item += " " + line
-
-            formatted_items.append(formatted_item.strip())
-
-        return "\n\n".join(formatted_items)
-
-
-    def synthesize_report(topic: str, internet_content: str) -> str:
-        full_report = ""
-        for completion in openai.chat.completions.create(
-            model="gpt-4-1106-preview",
-            temperature=1,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a helpful internet research assistant specializing in empowering buyers. You help sift through raw search results to find the most relevant and interesting findings for user topic of interest.",
-                },
-                {
-                    "role": "user",
-                    "content": "Input Data:\n"
-                    + internet_content
-                    + f"Write a two paragraph research report about **{topic}** based on the provided search results. One paragraph summarizing the Input Data, and another focusing on the main Research Topic. Include as many sources as possible. ALWAYS cite results using [[number](URL)] notation after the reference. End with a markdown table of all the URLs used. Remember to use markdown links when citing the context, for example [[number](URL)].",
-                },
-            ],
-            stream=True,
-        ):
-            # Check if there is content to display
-            if completion.choices[0].delta.content is not None:
-                full_report += completion.choices[0].delta.content
-                report_placeholder.markdown(full_report + "▌")
-        # Final update to placeholder after the stream ends
-        report_placeholder.markdown(full_report)
-        return full_report
 
     # Generate PDF report with the uploaded image and model output
     def markdown_to_text(markdown_string):
@@ -446,18 +497,12 @@ if user_dict['email'] or api_key_ in ADMIN_USERS:
 
     if show_details:
         # Text input for additional details about the image, shown only if toggle is True
-        additional_details = ui.textarea(
-            default_value="Add any additional details or context about the image here:",
-            # disabled=not show_details,
-            # height=125,
+        additional_details = st.text_area(
+            label="Additional details",
+            disabled=not show_details,
+            height=125,
         )
 
-
-    # Add a radio button for the prompt type
-    # prompt_type = st.radio(
-    #     "Choose the type of item for analysis:",
-    #     ("Single Image", "Multi Image"),
-    # )
 
     # Button to trigger the analysis
     analyze_button = ui.button('Launch Inspection', key="clk_btn", className="bg-green-950 text-white")
@@ -480,6 +525,8 @@ if user_dict['email'] or api_key_ in ADMIN_USERS:
                 
                 with open(image_path, "wb") as img_file:
                     img_file.write(uploaded_files[i].getvalue())
+                    
+            target_image_path = image_paths[0]
 
             # Set the prompt text based on number of photos
             
@@ -505,7 +552,6 @@ if user_dict['email'] or api_key_ in ADMIN_USERS:
                     "Your task is to examine the following set of images in detail, which are all of the same item. "
                     "Begin with a descriptive title caption using level one markdown heading. "
                     "Briefly summarize each of the views and how they contribute to the overall understanding of the item. "
-                    "Understand that users may inadvertently provide duplicate images. Simply advise them of this and proceed the analysis. "
                     "Provide a concise, factual, and price-focused explanation of what the images depict. "
                     "Highlight key elements and their significance, and present your analysis in clear, well-structured markdown format. "
                     "TITLE: "
@@ -555,16 +601,17 @@ if user_dict['email'] or api_key_ in ADMIN_USERS:
                     message_placeholder.markdown(full_response)
 
                     st.markdown("___")
-                    
-                    # ====== Web search starts here
-                    
-                    # TODO: Replace this with image embedding version. Need to get top 3-5 for each query, render and save for later
-                    
+                                                                              
                     base_queries = generate_base_queries(full_response)
+                    st.markdown(f"## Summary for {len(base_queries.search_tasks)} Search Variations")
+                    avs(1)
+                    
+                    status_placeholder = st.progress(0.0, text=" ")
                     
                     cols = st.columns(len(base_queries.search_tasks))
                     
                     for i, search in enumerate(base_queries.search_tasks):
+                        status_placeholder.progress(value=i/len(base_queries.search_tasks), text=f"Searching: {search}")
                         with cols[i]:
                             search_string = str(search.title())
                             st.markdown(f"**{search_string}**")
@@ -573,51 +620,135 @@ if user_dict['email'] or api_key_ in ADMIN_USERS:
                                 country='us', 
                                 condition='all',
                             )
-                            st.markdown(str(averagePrice))
+                            price_string = str(averagePrice).replace("\n\n", "\n")
+                            price_string = price_string.replace("$", "＄")
+                            st.write(price_string)
                             
                             st.markdown("___")
-                        
-                        with cols[i]:  
-                            sold_items = eBayWebSearch(search_string, alreadySold=True)
-                            st.markdown(str(sold_items[0]))
-                            st.markdown(str(sold_items[1]))
-                            st.markdown(str(sold_items[2]))
                     
+                    status_placeholder.empty()
                     
+                    status_placeholder2 = st.progress(0.0, text=" ")
+                    
+                    research_tabs = st.tabs(base_queries.search_tasks)
+                    
+                    all_results = []
+                    
+                    for i, search in enumerate(base_queries.search_tasks):
+                        status_placeholder2.progress(value=i/len(base_queries.search_tasks), text=f"Analyzing listings for: {search}")
+                        search = base_queries.search_tasks[i]
+                        with research_tabs[i]:
+                            with st.status(f"Searching for '{search}'", expanded=False) as status:
+                                res = get_similar_listings(
+                                    search_query=search,
+                                    image_path=target_image_path,
+                                    n=5,
+                                )
+                                all_results.extend(res)
+                                for i in range(len(res)):
+                                        text_col, image_col = st.columns([0.6, 0.4], gap="medium")
+                                        with text_col:
+                                            st.markdown(str(res[i]))
+                                        with image_col:
+                                            sized_image = upscale_image(res[i].image, scale=3)
+                                            st.image(sized_image)
+                                status.update(label=f"Completed research for: {search}", state="complete", expanded=True)
+                                                                      
                     st.markdown("___")
-
-                    # Define the placeholder for the report outside the container
-                    report_placeholder = st.empty()
-
-                    st.markdown("___")
-
- 
-                    # The final report will be displayed outside the container
-                    report_placeholder.markdown()
-
+                    status_placeholder2.empty()
+                    
+                    combined_search_results = ""
+                    
+                    with st.status(f"Getting best matches ...", expanded=False) as status:
+                        filtered_chunks = filter_chunks(target_image_path, all_results)
+                        st.markdown(f"\nReturned {len(filtered_chunks)} best matching images from {len(all_results)} candidates\n\n")
+                        for obj in filtered_chunks:
+                                text_col2, image_col2 = st.columns([0.6, 0.4], gap="medium")
+                                with text_col2:
+                                    st.markdown(str(obj))
+                                    combined_search_results += str(obj)
+                                    combined_search_results += "\n\n"
+                                with image_col2:
+                                    sized_image = upscale_image(obj.image, scale=3)
+                                    st.image(sized_image)
+                        status.update(label=f"{len(filtered_chunks)} Items Selected", state="complete", expanded=True)  
+                        st.markdown("_")
+                    
+                    ai = Assistant(
+                        instructions="You are a helpful research assistant, skilled at drafting engaging reports that are well structured and nicely formatted.",
+                    )
+                    thread = Thread(
+                    )
+                    thread.add(
+                        f"Please analyze the ITEM DESCRIPTION and SEARCH RESULTS and use them to write a market research-style report. \
+                        Include in your report details on the top 5 SEARCH RESULTS that most closely resemble the DESCRIPTION. \
+                        Note that the SEARCH RESULTS contain a mix of text and image based searches. You can select from ANY of them to find the best matches.\n\nITEM DESCRIPTION: {full_response}\n\nSEARCH RESULTS: {combined_search_results}",
+                    )
+                    with st.spinner(text=f"Generating research summary ..."):
+                        run = thread.run(ai)
+                        run_messages = thread.get_messages()
+                        query_eval_message = format_message_string(run_messages[-1])
+                        eval_string = query_eval_message.replace("$", "＄")
+                        st.markdown(eval_string)
+                                  
                     st.session_state["last_processed_message"] = messages
-                    st.session_state["last_full_response"] = full_response
+                    st.session_state["last_full_response"] = eval_string
 
                     st.session_state.analyze_button_clicked = False
                     # Create the PDF
                     st.markdown("___")
                     # Provide the download button
+                    
+                
                 except Exception as e:
                     st.error(f"An error occurred: {e}")
+                class eBayListingItem(BaseModel):
+                    """An item for sale on eBay"""
+                    title: str = Field(description="A concise tag-line style title for the item.")
+                    item_specifications: str = Field(description="A detailed inspection of the item in the style of product details or technical specs.")
+                    seo_style_ebay_listing: str = Field(description="A SEO-focused compelling description of the item. It should be engaging to read, helping users imagine how the item could positively impact their life.")
+                    
+                    def __str__(self):
+                        wrapped_description = textwrap.fill(self.seo_style_ebay_listing, width=100)
+                        return f"## {self.title}\n\n**Item Description:**\n\n{wrapped_description}"
+                        
 
-            else:
-                pdf_path = create_pdf(
-                    # image_path=image_path,
-                    text=st.session_state["last_full_response"],
-                    research=" ",
-                    content=" ",
+                img = marvin.Image.from_path(
+                    target_image_path
                 )
-                # Display the last stored response
-                message_placeholder = st.empty()
-                message_placeholder.markdown(st.session_state["last_full_response"])
-                st.info(
-                    "Displaying previous report as the image and details have not changed."
+                result = marvin.cast(
+                    data=img, 
+                    target=eBayListingItem,
+                    instructions="You are a wold class eBay seller, an expert at vividly describing items and crafting irresistible listing descriptions.",
                 )
+                
+                image_test = llm.prompt_image_gen(
+                    prompt=str(result.seo_style_ebay_listing),
+                    model="dall-e-3",
+                    size_category="square",
+                    style="vivid",
+                )
+                
+                text_col3, image_col3 = st.columns([0.5, 0.5], gap="medium")
+                with text_col3:
+                    st.markdown(str(result))
+                    
+                with image_col3:
+                    image_path = image_test.get('file_path')
+                    img = PILImage.open(image_path)
+                    sized_image = upscale_image(img, scale=2)
+                    st.image(sized_image)
+                
+                with st.expander("PDF Report"):
+                    pdf_path = create_pdf(
+                        image_path=image_path,
+                        text=eval_string,
+                        research=combined_search_results,
+                        content=" ",
+                    )
+                    show_pdf(pdf_path)
+                
+
 
 
 
