@@ -1,5 +1,6 @@
 import os
 import json
+from pathlib import Path
 import warnings
 from typing import Any, Dict, List
 import instructor
@@ -9,19 +10,25 @@ import openai
 from dotenv import load_dotenv
 
 
+DEFAULT_PROMPT_ROOT_DIR = "prompts"
+DEFAULT_PROMPT_FILE = "prompt_concierge.txt"
+DEFAULT_TOPIC_DIR = "cons"
+DEFAULT_TOPIC = "Legal Services Department Inquiries"
+
+
 class AutoCompletionEntry(BaseModel):
     input: str
     completions: List[str]
     correct_department: str | None = None
     hits: int = 1
-    
+
     def __str__(self):
         return f"{self.input} {self.completions[0]}"
-    
-    
+
+
 class AutoCompletions(BaseModel):
     """Auto-completions for a new user query."""
-    
+
     input: str = Field(
         ...,
         description="The user provided INPUT_VALUE.",
@@ -34,10 +41,15 @@ class AutoCompletions(BaseModel):
         ...,
         description="The predicted department based on ALL available information.",
     )
-    
+
 
 class AutoCompleteSystem:
-    def __init__(self, prompt_root_dir: str, topic_dir: str, topic: str):
+    def __init__(
+        self,
+        prompt_root_dir: str = DEFAULT_PROMPT_ROOT_DIR,
+        topic_dir: str = DEFAULT_TOPIC_DIR,
+        topic: str = DEFAULT_TOPIC,
+    ):
         """
         Initializes the AutoCompleteSystem with the given directories and topic.
 
@@ -54,7 +66,7 @@ class AutoCompleteSystem:
         self.domain_knowledge = self._load_domain_knowledge()
         load_dotenv()
         openai.api_key = os.getenv("OPENAI_API_KEY")
-        warnings.filterwarnings('ignore')
+        warnings.filterwarnings("ignore")
 
     def _load_prompt_template(self) -> str:
         """
@@ -73,7 +85,10 @@ class AutoCompleteSystem:
         Returns:
             str: The content of the previous completions file.
         """
-        with open(f"{self.prompt_root_dir}/knowledge_bases/{self.topic_dir}/previous_completions.json", "r") as file:
+        with open(
+            f"{self.prompt_root_dir}/knowledge_bases/{self.topic_dir}/previous_completions.json",
+            "r",
+        ) as file:
             return file.read()
 
     def _load_domain_knowledge(self) -> str:
@@ -83,9 +98,12 @@ class AutoCompleteSystem:
         Returns:
             str: The content of the domain knowledge file.
         """
-        with open(f"{self.prompt_root_dir}/knowledge_bases/{self.topic_dir}/domain_knowledge.txt", "r") as file:
+        with open(
+            f"{self.prompt_root_dir}/knowledge_bases/{self.topic_dir}/domain_knowledge.txt",
+            "r",
+        ) as file:
             return file.read()
-        
+
     def build_prompt(self, input_value: str) -> str:
         """
         Builds the prompt by replacing placeholders with actual values.
@@ -101,55 +119,60 @@ class AutoCompleteSystem:
         prompt = prompt.replace("{{domain_knowledge}}", self.domain_knowledge)
         prompt = prompt.replace("{{input_value}}", input_value)
         return prompt
-    
-    def truncate_json_by_tokens(self, json_string: str, threshold: int, model: str = "gpt-3.5-turbo") -> List[Dict[str, Any]]:
+
+    @staticmethod
+    def build_omni_prompt(
+        input_value: str,
+        topic: str = DEFAULT_TOPIC,
+        topic_dir: str = DEFAULT_TOPIC_DIR,
+    ) -> str:
         """
-        Truncates a JSON string into a list of dictionaries based on a token threshold using a specified model.
+        Constructs a complete prompt.
 
         Args:
-            json_string (str): The JSON string to be truncated.
-            threshold (int): The maximum number of tokens allowed in the truncated output.
-            model (str): The model used to count tokens, default is "gpt-3.5-turbo".
+            input_value (str): The user's input question or query.
+            topic str: The specific topic under which the prompt is categorized.
+            topic_dir str: The directory associated with the topic.
 
         Returns:
-            List[Dict[str, Any]]: A list of dictionaries representing the truncated JSON data.
+            str: A fully constructed prompt ready for use in the autocomplete system.
         """
-        data = json.loads(json_string)
-        truncated_data = []
-        current_tokens = 0
+        try:
+            prompt_path = Path(DEFAULT_PROMPT_ROOT_DIR) / DEFAULT_PROMPT_FILE
+            previous_completions_path = (
+                Path(DEFAULT_PROMPT_ROOT_DIR)
+                / "knowledge_bases"
+                / topic_dir
+                / "previous_completions.json"
+            )
+            domain_knowledge_path = (
+                Path(DEFAULT_PROMPT_ROOT_DIR)
+                / "knowledge_bases"
+                / topic_dir
+                / "domain_knowledge.txt"
+            )
 
-        for item in data:
-            item_string = json.dumps(item, indent=4)
-            item_tokens = tiktoken.count_tokens(item_string, model)
-            
-            if current_tokens + item_tokens > threshold:
-                break
-            
-            truncated_data.append(item)
-            current_tokens += item_tokens
+            with prompt_path.open("r") as file:
+                prompt = file.read()
 
-        return truncated_data
+            with previous_completions_path.open("r") as file:
+                previous_completions = file.read()
 
-    def build_prompt_with_token_limit(self, input_value: str, token_threshold: int) -> str:
-        """
-        Builds the prompt with a token limit by truncating the previous completions.
+            with domain_knowledge_path.open("r") as file:
+                domain_knowledge = file.read()
 
-        Args:
-            input_value (str): The input value to be included in the prompt.
-            token_threshold (int): The maximum number of tokens allowed in the prompt.
+            prompt = prompt.replace("{{topic}}", topic)
+            prompt = prompt.replace("{{previous_completions}}", previous_completions)
+            prompt = prompt.replace("{{domain_knowledge}}", domain_knowledge)
+            prompt = prompt.replace("{{input_value}}", input_value)
 
-        Returns:
-            str: The constructed prompt with token limit.
-        """
-        truncated_completions = self.truncate_json_by_tokens(self.previous_completions, token_threshold)
-        truncated_completions_str = json.dumps(truncated_completions, indent=4)
-        
-        prompt = self.prompt_template.replace("{{topic}}", self.topic)
-        prompt = prompt.replace("{{previous_completions}}", truncated_completions_str)
-        prompt = prompt.replace("{{domain_knowledge}}", self.domain_knowledge)
-        prompt = prompt.replace("{{input_value}}", input_value)
-        return prompt
-    
+            return prompt
+
+        except FileNotFoundError as e:
+            raise FileNotFoundError(f"Required file not found: {e.filename}")
+        except Exception as e:
+            raise RuntimeError(f"An error occurred while building the prompt: {e}")
+
     def get_autocompletions(self, input_data: str) -> AutoCompletions:
         """
         Retrieves auto-completions for a given input using a language model.
@@ -160,25 +183,27 @@ class AutoCompleteSystem:
         Returns:
             AutoCompletion: An object containing the input, completions, and predicted department.
         """
-        prompt = self.build_prompt(
+        prompt = self.build_omni_prompt(
             input_data, topic=self.topic, topic_dir=self.topic_dir
         )
         client = instructor.from_openai(openai.OpenAI())
-        
+
         return client.chat.completions.create(
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt,
-                    },
-                ],
-                model="gpt-4-turbo",
-                response_model=AutoCompletions,
-            )
-    
-    def increment_or_create_previous_completions(self, input: str, completion: str) -> List[Dict[str, Any]]:
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt,
+                },
+            ],
+            model="gpt-4o",
+            response_model=AutoCompletions,
+        )
+
+    def increment_previous_completions(
+        self, input: str, completion: str
+    ) -> List[Dict[str, Any]]:
         """
-        Increments the hit count for an existing completion or creates a new one.
+        Updates the previous completions by adding a new completion if no matching case is found.
 
         Args:
             input (str): The input text.
@@ -187,7 +212,10 @@ class AutoCompleteSystem:
         Returns:
             List[Dict[str, Any]]: The updated list of previous completions.
         """
+        # Define the path to the previous completions file
         previous_completions_file = f"{self.prompt_root_dir}/knowledge_bases/{self.topic_dir}/previous_completions.json"
+
+        # Attempt to load the previous completions from the file
         try:
             with open(previous_completions_file, "r") as file:
                 data = json.load(file)
@@ -195,20 +223,22 @@ class AutoCompleteSystem:
         except (FileNotFoundError, json.JSONDecodeError, ValidationError):
             previous_completions = []
 
+        # Search for a matching case in the previous completions
         matching_case = None
         for item in previous_completions:
             if item.input.lower() == input.lower():
                 matching_case = item
                 break
 
-        if matching_case:
-            matching_case.hits += 1
-            matching_case.completions.append(completion)
-        else:
+        # If no matching case is found, create a new entry
+        if not matching_case:
             new_entry = AutoCompletionEntry(input=input, completions=[completion])
             previous_completions.append(new_entry)
 
+        # Write the updated list of previous completions back to the file
         with open(previous_completions_file, "w") as file:
-            json.dump([entry.model_dump() for entry in previous_completions], file, indent=4)
+            json.dump(
+                [entry.model_dump() for entry in previous_completions], file, indent=4
+            )
 
         return previous_completions

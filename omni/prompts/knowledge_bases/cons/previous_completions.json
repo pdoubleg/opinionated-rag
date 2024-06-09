@@ -1,0 +1,66 @@
+[
+    {
+        "input": "i was terminated from my job without any given reason and need legal advice",
+        "correct_department": "Employment Disputes"
+    },
+    {
+        "input": "i need help understanding the details of my insurance policy for a complicated claim",
+        "correct_department": "Coverage Team"
+    },
+    {
+        "input": "i have a legal case that requires representation in court",
+        "correct_department": "Field Legal"
+    },
+    {
+        "input": "i need assistance with understanding new regulations in our industry",
+        "correct_department": "Compliance Team"
+    },
+    {
+        "input": "i suspect there is fraudulent activity involved in this insurance claim",
+        "correct_department": "Fraud Investigation Unit"
+    },
+    {
+        "input": "how can we recover funds from another party for a claim we have already paid out",
+        "correct_department": "Subrogation Department"
+    },
+    {
+        "input": "our insured product has caused injuries and we need legal assistance",
+        "correct_department": "Product Liability Team"
+    },
+    {
+        "input": "we are facing issues related to pollution and need legal help",
+        "correct_department": "Environmental Claims Unit"
+    },
+    {
+        "input": "i need legal support for a case involving workplace negligence",
+        "correct_department": "Professional Liability Group"
+    },
+    {
+        "input": "we have a claim involving defects in renovations performed by our insured's project and need legal advice",
+        "correct_department": "Construction Defects Team"
+    },
+    {
+        "input": "i need assistance with a workers' compensation claim",
+        "correct_department": "Workers' Compensation Legal Team"
+    },
+    {
+        "input": "we are dealing with a challenge related to intellectual property",
+        "correct_department": "Intellectual Property Group"
+    },
+    {
+        "input": "we have a dispute with a vendor regarding a contract",
+        "correct_department": "Contractual Disputes Team"
+    },
+    {
+        "input": "we need legal support for a merger that is coming up",
+        "correct_department": "Mergers & Acquisitions Legal Team"
+    },
+    {
+        "input": "we need legal advice for a transaction involving real estate",
+        "correct_department": "Real Estate Legal Services"
+    },
+    {
+        "input": "we are dealing with a bankruptcy case and need legal guidance",
+        "correct_department": "Bankruptcy and Insolvency Team"
+    }
+]

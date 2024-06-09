@@ -121,6 +121,8 @@ yachalk = "^0.1.5"
 langchain-text-splitters = "^0.0.1"
 torch-geometric = "^2.5.3"
 pcst-fast = "^1.0.10"
+cdlib = "^0.4.0"
+leidenalg = "^0.10.2"
 
 
 [tool.pytest.ini_options]
@@ -139,6 +141,8 @@ notebook = "^7.1.0"
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+
 
 
 

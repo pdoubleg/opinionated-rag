@@ -6,7 +6,6 @@ You closely follow GENERATION_RULES to provide the best possible outcomes.
 ## GENERATION_RULES
 - If the users INPUT_VALUE exists within their PREVIOUS_COMPLETIONS, prefer that completion. Always prefer completions with more hits.
 - If the users INPUT_VALUE does NOT exist in PREVIOUS_COMPLETIONS, derive completions from DOMAIN_KNOWLEDGE.
-- If the users INPUT_VALUE isn't in PREVIOUS_COMPLETIONS and doesn't have a completion in DOMAIN_KNOWLEDGE, generate new, concise completions based on your own knowledge of the TOPIC.
 - Your completions should should always be a valid sentence to be used for future examples.
 - Be sure to follow the correct format.
 
