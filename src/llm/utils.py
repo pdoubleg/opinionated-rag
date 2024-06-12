@@ -9,46 +9,17 @@ import time
 from typing import Any, Callable, Dict, Iterable, List
 
 import aiohttp
+import diskcache
 import openai
 from pydantic import BaseModel
 import requests
-from diskcache import Cache
+import diskcache
+from src.utils.logging import setup_colored_logging
 
 from src.utils.system import friendly_error
 
-# from src.utils.system import friendly_error
+logger = setup_colored_logging(__name__)
 
-logger = logging.getLogger(__name__)
-# setlevel to warning
-logger.setLevel(logging.INFO)
-
-
-# cache = Cache("./my_cache_directory")
-
-
-# def instructor_cache(func):
-#     """Cache a function that returns a Pydantic model"""
-#     return_type = inspect.signature(func).return_annotation
-#     if not issubclass(return_type, BaseModel):
-#         raise ValueError("The return type must be a Pydantic model")
-
-#     @functools.wraps(func)
-#     def wrapper(*args, **kwargs):
-#         key = f"{func.__name__}-{functools._make_key(args, kwargs, typed=False)}"
-#         # Check if the result is already cached
-#         if (cached := cache.get(key)) is not None:
-#             # Deserialize from JSON based on the return type
-#             if issubclass(return_type, BaseModel):
-#                 return return_type.model_validate_json(cached)
-
-#         # Call the function and cache its result
-#         result = func(*args, **kwargs)
-#         serialized_result = result.model_dump_json()
-#         cache.set(key, serialized_result)
-
-#         return result
-
-#     return wrapper
 
 # Example:
 #
@@ -70,51 +41,50 @@ logger.setLevel(logging.INFO)
 # model = extract("Extract jason is 25 years old")
 
 
-# def cache_decorator_factory(cache: Cache):
-#     def instructor_cache(func):
-#         """Cache decorator for methods returning Pydantic models."""
-#         @functools.wraps(func)
-#         def wrapper(self, *args, **kwargs):
-#             # Generate a unique key based on the function name and arguments
-#             key = f"{func.__name__}-{functools._make_key(args, kwargs, typed=False)}"
-#             # Check if the result is already cached
-#             if (cached := cache.get(key)) is not None:
-#                 # Deserialize from JSON based on the return type
-#                 return_type = inspect.signature(func).return_annotation
-#                 if issubclass(return_type, BaseModel):
-#                     return return_type.parse_raw(cached)
-#             # Call the function and cache its result
-#             result = func(self, *args, **kwargs)
-#             serialized_result = result.json()
-#             cache.set(key, serialized_result)
-#             return result
-#         return wrapper
-#     return instructor_cache
+cache = diskcache.Cache("./my_cache_directory")
 
 
-def async_cache_decorator_factory(cache: Cache):
-    def instructor_acache(func):
-        """Cache decorator for asynchronous methods returning Pydantic models."""
+def instructor_cache(func):
+    """Cache a function that returns a Pydantic model"""
+    return_type = inspect.signature(func).return_annotation
+    if not issubclass(return_type, BaseModel):
+        raise ValueError("The return type must be a Pydantic model")
 
-        @functools.wraps(func)
-        async def wrapper(self, *args, **kwargs):
-            # Generate a unique key based on the function name and arguments
-            key = f"{func.__name__}-{functools._make_key(args, kwargs, typed=False)}"
-            # Check if the result is already cached
-            if (cached := cache.get(key)) is not None:
-                # Deserialize from JSON based on the return type
-                return_type = inspect.signature(func).return_annotation
-                if issubclass(return_type, BaseModel):
-                    return return_type.parse_raw(cached)
-            # Call the function and cache its result
-            result = await func(self, *args, **kwargs)
-            serialized_result = result.json()
-            cache.set(key, serialized_result)
-            return result
+    is_async = inspect.iscoroutinefunction(func)
 
-        return wrapper
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        key = f"{func.__name__}-{functools._make_key(args, kwargs, typed=False)}"
+        # Check if the result is already cached
+        if (cached := cache.get(key)) is not None:
+            # Deserialize from JSON based on the return type
+            if issubclass(return_type, BaseModel):
+                return return_type.model_validate_json(cached)
 
-    return instructor_acache
+        # Call the function and cache its result
+        result = func(*args, **kwargs)
+        serialized_result = result.model_dump_json()
+        cache.set(key, serialized_result)
+
+        return result
+
+    @functools.wraps(func)
+    async def awrapper(*args, **kwargs):
+        key = f"{func.__name__}-{functools._make_key(args, kwargs, typed=False)}"
+        # Check if the result is already cached
+        if (cached := cache.get(key)) is not None:
+            # Deserialize from JSON based on the return type
+            if issubclass(return_type, BaseModel):
+                return return_type.model_validate_json(cached)
+
+        # Call the function and cache its result
+        result = await func(*args, **kwargs)
+        serialized_result = result.model_dump_json()
+        cache.set(key, serialized_result)
+
+        return result
+
+    return wrapper if not is_async else awrapper
 
 
 def batched(iterable: Iterable[Any], n: int) -> Iterable[Any]:
