@@ -124,3 +124,574 @@ Works with claims adjusters and auto repair experts.
 Manages claims involving property damage from natural disasters, accidents, and other incidents.
 Provides legal support for damage assessments and settlements.
 Collaborates with claims adjusters and repair contractors.
+
+# Licensing Legal Team
+Handles legal matters related to obtaining and maintaining licenses.
+Provides advice on regulatory compliance and licensing requirements.
+Manages disputes and litigation involving licensing issues.
+
+# Legal System Abuse Team
+Investigates and addresses instances of legal system abuse.
+Provides defense against frivolous lawsuits and malicious legal actions.
+Works with other departments to identify and mitigate legal system abuse.
+
+# Bad Faith Allegations Team
+Handles claims and disputes involving allegations of bad faith.
+Provides legal defense and advice on bad faith claims.
+Works with claims adjusters and other departments to address bad faith issues.
+
+# Media Inquiries Legal Team
+Manages legal aspects of media inquiries and public relations.
+Provides advice on media statements and press releases.
+Handles disputes and litigation involving media coverage.
+
+# Licensing Compliance Team
+Ensures compliance with licensing regulations and standards.
+Conducts internal audits and reviews of licensing practices.
+Provides guidance on licensing compliance issues.
+
+# Legal Research Team
+Conducts legal research and analysis for various departments.
+Provides support for case law research and legal opinions.
+Assists with the development of legal strategies and arguments.
+
+# Litigation Support Team
+Provides support for litigation matters across all departments.
+Assists with case preparation, document review, and evidence management.
+Works with attorneys and paralegals to ensure effective litigation support.
+
+# Risk Management Legal Team
+Provides legal advice on risk management and mitigation strategies.
+Assists with the development of risk management policies and procedures.
+Handles disputes and litigation involving risk management issues.
+
+# Intellectual Property Compliance Team
+Ensures compliance with intellectual property laws and regulations.
+Conducts internal audits and reviews of IP practices.
+Provides guidance on IP compliance issues.
+
+# Corporate Governance Legal Team
+Handles legal matters related to corporate governance and compliance.
+Provides advice on board governance, shareholder rights, and corporate policies.
+Manages disputes and litigation involving corporate governance issues.
+
+# Antitrust Legal Team
+Handles legal matters related to antitrust and competition law.
+Provides advice on antitrust compliance and regulatory issues.
+Manages disputes and litigation involving antitrust claims.
+
+# Consumer Protection Legal Team
+Handles legal matters related to consumer protection laws and regulations.
+Provides advice on compliance with consumer protection standards.
+Manages disputes and litigation involving consumer protection issues.
+
+# Advertising and Marketing Legal Team
+Handles legal matters related to advertising and marketing practices.
+Provides advice on compliance with advertising regulations and standards.
+Manages disputes and litigation involving advertising and marketing issues.
+
+# Intellectual Property Litigation Team
+Handles litigation matters involving intellectual property disputes.
+Provides legal defense and advice on IP litigation.
+Works with other departments to address IP litigation issues.
+
+# Employment Law Compliance Team
+Ensures compliance with employment laws and regulations.
+Conducts internal audits and reviews of employment practices.
+Provides guidance on employment law compliance issues.
+
+# Government Affairs Legal Team
+Manages relationships with government agencies and officials.
+Provides advice on government regulations and policies.
+Handles disputes and litigation involving government affairs.
+
+# Insurance Policy Drafting Team
+Handles the drafting and review of insurance policies and contracts.
+Provides advice on policy language and coverage issues.
+Works with underwriters and other departments to develop policy documents.
+
+# Claims Litigation Team
+Handles litigation matters involving insurance claims.
+Provides legal defense and advice on claims litigation.
+Works with claims adjusters and other departments to address claims litigation issues.
+
+# Environmental Compliance Legal Team
+Ensures compliance with environmental laws and regulations.
+Conducts internal audits and reviews of environmental practices.
+Provides guidance on environmental compliance issues.
+
+# Financial Services Legal Team
+Handles legal matters related to financial services and regulations.
+Provides advice on compliance with financial regulations and standards.
+Manages disputes and litigation involving financial services issues.
+
+# Healthcare Compliance Legal Team
+Ensures compliance with healthcare laws and regulations.
+Conducts internal audits and reviews of healthcare practices.
+Provides guidance on healthcare compliance issues.
+
+# Insurance Fraud Prevention Team
+Investigates and addresses instances of insurance fraud.
+Provides support for fraud prevention and detection efforts.
+Works with law enforcement and other agencies to combat insurance fraud.
+
+# Legal Technology Team
+Manages legal technology and software solutions for the legal department.
+Provides support for legal technology implementation and maintenance.
+Assists with the development of legal technology strategies and initiatives.
+
+# Litigation Management Team
+Manages the overall litigation process for the company.
+Provides support for case management, document review, and evidence handling.
+Works with attorneys and paralegals to ensure effective litigation management.
+
+# Policyholder Services Legal Team
+Handles legal matters related to policyholder services and support.
+Provides advice on policyholder rights and obligations.
+Manages disputes and litigation involving policyholder services issues.
+
+# Regulatory Compliance Legal Team
+Ensures compliance with industry regulations and standards.
+Conducts internal audits and reviews of regulatory practices.
+Provides guidance on regulatory compliance issues.
+
+# Securities Legal Team
+Handles legal matters related to securities laws and regulations.
+Provides advice on compliance with securities regulations and standards.
+Manages disputes and litigation involving securities issues.
+
+# Tax Legal Team
+Handles legal matters related to tax laws and regulations.
+Provides advice on tax compliance and planning strategies.
+Manages disputes and litigation involving tax issues.
+
+# Technology and Innovation Legal Team
+Handles legal matters related to technology and innovation.
+Provides advice on technology development and intellectual property protection.
+Manages disputes and litigation involving technology and innovation issues.
+
+# Trade Compliance Legal Team
+Ensures compliance with trade laws and regulations.
+Conducts internal audits and reviews of trade practices.
+Provides guidance on trade compliance issues.
+
+# Transportation Legal Team
+Handles legal matters related to transportation and logistics.
+Provides advice on transportation regulations and standards.
+Manages disputes and litigation involving transportation issues.
+
+# White Collar Defense Legal Team
+Provides defense against white collar crime allegations.
+Handles cases involving fraud, embezzlement, and other white collar crimes.
+Works with law enforcement and other agencies to address white collar crime issues.
+
+# Workplace Safety Legal Team
+Handles legal matters related to workplace safety and health regulations.
+Provides advice on compliance with workplace safety standards.
+Manages disputes and litigation involving workplace safety issues.
+
+# Youth Protection Legal Team
+Handles legal matters related to the protection of minors.
+Provides advice on compliance with child protection laws and regulations.
+Manages disputes and litigation involving youth protection issues.
+
+# Zoning and Land Use Legal Team
+Handles legal matters related to zoning and land use regulations.
+Provides advice on compliance with zoning laws and land use planning.
+Manages disputes and litigation involving zoning and land use issues.
+
+# Alternative Dispute Resolution Team
+Provides support for alternative dispute resolution methods.
+Handles mediation, arbitration, and other non-litigation dispute resolution processes.
+Works with other departments to develop ADR strategies and initiatives.
+
+# Appellate Legal Team
+Handles appeals and post-trial motions for litigation matters.
+Provides legal support for appellate briefs and oral arguments.
+Works with trial attorneys to develop appellate strategies.
+
+# Class Action Defense Team
+Provides defense against class action lawsuits.
+Handles cases involving multiple plaintiffs and complex legal issues.
+Works with other departments to address class action litigation.
+
+# Corporate Transactions Legal Team
+Handles legal matters related to corporate transactions and deals.
+Provides advice on mergers, acquisitions, and other corporate transactions.
+Manages disputes and litigation involving corporate transactions.
+
+# Crisis Management Legal Team
+Provides legal support for crisis management and response efforts.
+Handles legal issues related to crisis situations and emergencies.
+Works with other departments to develop crisis management plans and strategies.
+
+# E-Discovery Legal Team
+Manages electronic discovery processes for litigation matters.
+Provides support for data collection, review, and production.
+Works with IT and other departments to ensure effective e-discovery practices.
+
+# Employment Litigation Team
+Handles litigation matters involving employment disputes.
+Provides legal defense and advice on employment litigation.
+Works with HR and other departments to address employment litigation issues.
+
+# Ethics and Compliance Legal Team
+Ensures compliance with ethical standards and regulations.
+Conducts internal audits and reviews of ethical practices.
+Provides guidance on ethics and compliance issues.
+
+# Government Contracts Legal Team
+Handles legal matters related to government contracts and procurement.
+Provides advice on compliance with government contracting regulations.
+Manages disputes and litigation involving government contracts.
+
+# Insurance Coverage Legal Team
+Handles legal matters related to insurance coverage and policy interpretation.
+Provides advice on coverage issues and policy language.
+Manages disputes and litigation involving insurance coverage.
+
+# Intellectual Property Transactions Team
+Handles legal matters related to IP transactions and licensing.
+Provides advice on IP agreements and contracts.
+Manages disputes and litigation involving IP transactions.
+
+# International Trade Legal Team
+Handles legal matters related to international trade and commerce.
+Provides advice on compliance with international trade regulations.
+Manages disputes and litigation involving international trade issues.
+
+# Labor Relations Legal Team
+Handles legal matters related to labor relations and union activities.
+Provides advice on compliance with labor laws and regulations.
+Manages disputes and litigation involving labor relations issues.
+
+# Privacy and Data Protection Legal Team
+Ensures compliance with privacy and data protection laws and regulations.
+Conducts internal audits and reviews of privacy practices.
+Provides guidance on privacy and data protection issues.
+
+# Product Development Legal Team
+Provides legal support for product development and innovation.
+Handles legal matters related to product design, testing, and launch.
+Works with product development teams to address legal issues.
+
+# Real Estate Transactions Legal Team
+Handles legal matters related to real estate transactions and deals.
+Provides advice on property acquisitions, sales, and leases.
+Manages disputes and litigation involving real estate transactions.
+
+# Regulatory Investigations Legal Team
+Handles legal matters related to regulatory investigations and enforcement actions.
+Provides advice on compliance with regulatory requirements.
+Manages disputes and litigation involving regulatory investigations.
+
+# Securities Litigation Team
+Handles litigation matters involving securities disputes.
+Provides legal defense and advice on securities litigation.
+Works with other departments to address securities litigation issues.
+
+# Supply Chain Legal Team
+Handles legal matters related to supply chain management and logistics.
+Provides advice on compliance with supply chain regulations and standards.
+Manages disputes and litigation involving supply chain issues.
+
+# Tax Compliance Legal Team
+Ensures compliance with tax laws and regulations.
+Conducts internal audits and reviews of tax practices.
+Provides guidance on tax compliance issues.
+
+# Technology Transactions Legal Team
+Handles legal matters related to technology transactions and agreements.
+Provides advice on technology licensing and contracts.
+Manages disputes and litigation involving technology transactions.
+
+# Trade Secrets Legal Team
+Handles legal matters related to trade secrets and confidential information.
+Provides advice on trade secret protection and enforcement.
+Manages disputes and litigation involving trade secrets.
+
+# Transportation Litigation Team
+Handles litigation matters involving transportation disputes.
+Provides legal defense and advice on transportation litigation.
+Works with other departments to address transportation litigation issues.
+
+# White Collar Crime Compliance Team
+Ensures compliance with white collar crime regulations and standards.
+Conducts internal audits and reviews of white collar crime practices.
+Provides guidance on white collar crime compliance issues.
+
+# Workplace Investigations Legal Team
+Handles legal matters related to workplace investigations and misconduct.
+Provides advice on compliance with workplace investigation standards.
+Manages disputes and litigation involving workplace investigations.
+
+# Youth Services Legal Team
+Handles legal matters related to youth services and programs.
+Provides advice on compliance with youth services regulations and standards.
+Manages disputes and litigation involving youth services issues.
+
+# Zoning Litigation Team
+Handles litigation matters involving zoning and land use disputes.
+Provides legal defense and advice on zoning litigation.
+Works with other departments to address zoning litigation issues.
+
+# Alternative Energy Legal Team
+Handles legal matters related to alternative energy and renewable resources.
+Provides advice on compliance with alternative energy regulations and standards.
+Manages disputes and litigation involving alternative energy issues.
+
+# Appellate Litigation Team
+Handles appeals and post-trial motions for litigation matters.
+Provides legal support for appellate briefs and oral arguments.
+Works with trial attorneys to develop appellate strategies.
+
+# Class Action Litigation Team
+Handles litigation matters involving class action lawsuits.
+Provides legal defense and advice on class action litigation.
+Works with other departments to address class action litigation issues.
+
+# Corporate Compliance Legal Team
+Ensures compliance with corporate laws and regulations.
+Conducts internal audits and reviews of corporate practices.
+Provides guidance on corporate compliance issues.
+
+# Crisis Response Legal Team
+Provides legal support for crisis response and management efforts.
+Handles legal issues related to crisis situations and emergencies.
+Works with other departments to develop crisis response plans and strategies.
+
+# E-Discovery Management Team
+Manages electronic discovery processes for litigation matters.
+Provides support for data collection, review, and production.
+Works with IT and other departments to ensure effective e-discovery practices.
+
+# Employment Compliance Legal Team
+Ensures compliance with employment laws and regulations.
+Conducts internal audits and reviews of employment practices.
+Provides guidance on employment compliance issues.
+
+# Ethics Compliance Legal Team
+Ensures compliance with ethical standards and regulations.
+Conducts internal audits and reviews of ethical practices.
+Provides guidance on ethics compliance issues.
+
+# Government Procurement Legal Team
+Handles legal matters related to government procurement and contracts.
+Provides advice on compliance with government procurement regulations.
+Manages disputes and litigation involving government procurement.
+
+# Insurance Policy Compliance Team
+Ensures compliance with insurance policy regulations and standards.
+Conducts internal audits and reviews of policy practices.
+Provides guidance on insurance policy compliance issues.
+
+# Intellectual Property Compliance Team
+Ensures compliance with intellectual property laws and regulations.
+Conducts internal audits and reviews of IP practices.
+Provides guidance on IP compliance issues.
+
+# International Compliance Legal Team
+Ensures compliance with international laws and regulations.
+Conducts internal audits and reviews of international practices.
+Provides guidance on international compliance issues.
+
+# Labor Compliance Legal Team
+Ensures compliance with labor laws and regulations.
+Conducts internal audits and reviews of labor practices.
+Provides guidance on labor compliance issues.
+
+# Privacy Compliance Legal Team
+Ensures compliance with privacy laws and regulations.
+Conducts internal audits and reviews of privacy practices.
+Provides guidance on privacy compliance issues.
+
+# Product Compliance Legal Team
+Ensures compliance with product laws and regulations.
+Conducts internal audits and reviews of product practices.
+Provides guidance on product compliance issues.
+
+# Real Estate Compliance Legal Team
+Ensures compliance with real estate laws and regulations.
+Conducts internal audits and reviews of real estate practices.
+Provides guidance on real estate compliance issues.
+
+# Regulatory Compliance Legal Team
+Ensures compliance with regulatory laws and regulations.
+Conducts internal audits and reviews of regulatory practices.
+Provides guidance on regulatory compliance issues.
+
+# Securities Compliance Legal Team
+Ensures compliance with securities laws and regulations.
+Conducts internal audits and reviews of securities practices.
+Provides guidance on securities compliance issues.
+
+# Supply Chain Compliance Legal Team
+Ensures compliance with supply chain laws and regulations.
+Conducts internal audits and reviews of supply chain practices.
+Provides guidance on supply chain compliance issues.
+
+# Tax Compliance Legal Team
+Ensures compliance with tax laws and regulations.
+Conducts internal audits and reviews of tax practices.
+Provides guidance on tax compliance issues.
+
+# Technology Compliance Legal Team
+Ensures compliance with technology laws and regulations.
+Conducts internal audits and reviews of technology practices.
+Provides guidance on technology compliance issues.
+
+# Trade Compliance Legal Team
+Ensures compliance with trade laws and regulations.
+Conducts internal audits and reviews of trade practices.
+Provides guidance on trade compliance issues.
+
+# Transportation Compliance Legal Team
+Ensures compliance with transportation laws and regulations.
+Conducts internal audits and reviews of transportation practices.
+Provides guidance on transportation compliance issues.
+
+# White Collar Crime Compliance Legal Team
+Ensures compliance with white collar crime laws and regulations.
+Conducts internal audits and reviews of white collar crime practices.
+Provides guidance on white collar crime compliance issues.
+
+# Workplace Compliance Legal Team
+Ensures compliance with workplace laws and regulations.
+Conducts internal audits and reviews of workplace practices.
+Provides guidance on workplace compliance issues.
+
+# Youth Compliance Legal Team
+Ensures compliance with youth laws and regulations.
+Conducts internal audits and reviews of youth practices.
+Provides guidance on youth compliance issues.
+
+# Zoning Compliance Legal Team
+Ensures compliance with zoning laws and regulations.
+Conducts internal audits and reviews of zoning practices.
+Provides guidance on zoning compliance issues.
+
+# Alternative Energy Compliance Legal Team
+Ensures compliance with alternative energy laws and regulations.
+Conducts internal audits and reviews of alternative energy practices.
+Provides guidance on alternative energy compliance issues.
+
+# Appellate Compliance Legal Team
+Ensures compliance with appellate laws and regulations.
+Conducts internal audits and reviews of appellate practices.
+Provides guidance on appellate compliance issues.
+
+# Class Action Compliance Legal Team
+Ensures compliance with class action laws and regulations.
+Conducts internal audits and reviews of class action practices.
+Provides guidance on class action compliance issues.
+
+# Corporate Compliance Legal Team
+Ensures compliance with corporate laws and regulations.
+Conducts internal audits and reviews of corporate practices.
+Provides guidance on corporate compliance issues.
+
+# Crisis Compliance Legal Team
+Ensures compliance with crisis laws and regulations.
+Conducts internal audits and reviews of crisis practices.
+Provides guidance on crisis compliance issues.
+
+# E-Discovery Compliance Legal Team
+Ensures compliance with e-discovery laws and regulations.
+Conducts internal audits and reviews of e-discovery practices.
+Provides guidance on e-discovery compliance issues.
+
+# Employment Compliance Legal Team
+Ensures compliance with employment laws and regulations.
+Conducts internal audits and reviews of employment practices.
+Provides guidance on employment compliance issues.
+
+# Ethics Compliance Legal Team
+Ensures compliance with ethics laws and regulations.
+Conducts internal audits and reviews of ethics practices.
+Provides guidance on ethics compliance issues.
+
+# Government Compliance Legal Team
+Ensures compliance with government laws and regulations.
+Conducts internal audits and reviews of government practices.
+Provides guidance on government compliance issues.
+
+# Insurance Compliance Legal Team
+Ensures compliance with insurance laws and regulations.
+Conducts internal audits and reviews of insurance practices.
+Provides guidance on insurance compliance issues.
+
+# Intellectual Property Compliance Legal Team
+Ensures compliance with intellectual property laws and regulations.
+Conducts internal audits and reviews of intellectual property practices.
+Provides guidance on intellectual property compliance issues.
+
+# International Compliance Legal Team
+Ensures compliance with international laws and regulations.
+Conducts internal audits and reviews of international practices.
+Provides guidance on international compliance issues.
+
+# Labor Compliance Legal Team
+Ensures compliance with labor laws and regulations.
+Conducts internal audits and reviews of labor practices.
+Provides guidance on labor compliance issues.
+
+# Privacy Compliance Legal Team
+Ensures compliance with privacy laws and regulations.
+Conducts internal audits and reviews of privacy practices.
+Provides guidance on privacy compliance issues.
+
+# Product Compliance Legal Team
+Ensures compliance with product laws and regulations.
+Conducts internal audits and reviews of product practices.
+Provides guidance on product compliance issues.
+
+# Real Estate Compliance Legal Team
+Ensures compliance with real estate laws and regulations.
+Conducts internal audits and reviews of real estate practices.
+Provides guidance on real estate compliance issues.
+
+# Regulatory Compliance Legal Team
+Ensures compliance with regulatory laws and regulations.
+Conducts internal audits and reviews of regulatory practices.
+Provides guidance on regulatory compliance issues.
+
+# Securities Compliance Legal Team
+Ensures compliance with securities laws and regulations.
+Conducts internal audits and reviews of securities practices.
+Provides guidance on securities compliance issues.
+
+# Supply Chain Compliance Legal Team
+Ensures compliance with supply chain laws and regulations.
+Conducts internal audits and reviews of supply chain practices.
+Provides guidance on supply chain compliance issues.
+
+# Tax Compliance Legal Team
+Ensures compliance with tax laws and regulations.
+Conducts internal audits and reviews of tax practices.
+Provides guidance on tax compliance issues.
+
+# Technology Compliance Legal Team
+Ensures compliance with technology laws and regulations.
+Conducts internal audits and reviews of technology practices.
+Provides guidance on technology compliance issues.
+
+# Trade Compliance Legal Team
+Ensures compliance with trade laws and regulations.
+Conducts internal audits and reviews of trade practices.
+Provides guidance on trade compliance issues.
+
+# Transportation Compliance Legal Team
+Ensures compliance with transportation laws and regulations.
+Conducts internal audits and reviews of transportation practices.
+Provides guidance on transportation compliance issues.
+
+# White Collar Crime Compliance Legal Team
+Ensures compliance with white collar crime laws and regulations.
+Conducts internal audits and reviews of white collar crime practices.
+Provides guidance on white collar crime compliance issues.
+
+# Workplace Compliance Legal Team
+Ensures compliance with workplace laws and regulations.
+Conducts internal audits and reviews of workplace practices.
+Provides guidance on workplace compliance issues.
+

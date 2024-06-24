@@ -1,5 +1,6 @@
 import os
-from pydantic import BaseModel, ValidationError
+import pandas as pd
+from pydantic import BaseModel, Field, ValidationError
 import json
 import re
 from src.utils.graph_logger import GraphLogger
@@ -27,7 +28,8 @@ class Ontology(BaseModel):
             return self.model_dump(exclude=["relationships"])
         else:
             return self.model_dump()
-
+        
+        
 class Node(BaseModel):
     label: str
     name: str
@@ -38,17 +40,34 @@ class Edge(BaseModel):
     relationship: str
     metadata: dict = {}
     order: int | None = None
+    
+    
+class KnowledgeGraph(BaseModel):
+    edges: List[Edge] = Field(..., default_factory=list)
+    
+    @property
+    def to_pandas(self):
+        kg_dict = {
+            "node_1": [n.node_1.name for n in self.edges],
+            "node_2": [n.node_2.name for n in self.edges],
+            "edge": [n.relationship for n in self.edges],
+            "node_1_type": [n.node_1.label for n in self.edges],
+            "node_2_type": [n.node_2.label for n in self.edges],
+        }
+        return pd.DataFrame(kg_dict)
+
 
 default_ontology = Ontology(
     labels=[
-        {"Person": "Person name without any adjectives"},
-        "Place",
-        "Object",
+        {"Organization": "Name of an organization."},
+        {"Service": "Name of a provided service."},
+        {"Team": "Name of the team providing a service."},
+        {"Department": "Name of an internal department."},
         "Document",
         "Concept",
-        "Organization",
-        "Event",
-        "Action",
+        "Issue",
+        "Question",
+        "Request",
     ],
     relationships=["Relationship between Any two labeled entities"],
 )
@@ -64,7 +83,7 @@ class GraphMaker:
     ):
         self._ontology = ontology
         self._llm_client = llm_client
-        self._model = "gpt-4-turbo"
+        self._model = "gpt-4o"
         self._verbose = verbose
         if self._verbose:
             verbose_logger.setLevel("INFO")
@@ -164,7 +183,9 @@ class GraphMaker:
 
         edges = [self.json_to_edge(edg) for edg in json_data]
         edges = list(filter(None, edges))
-        return edges
+        return KnowledgeGraph(
+            edges=edges,
+        )
 
     def from_document(
         self, doc: Document, order: Union[int, None] = None
@@ -174,7 +195,9 @@ class GraphMaker:
         for edge in graph:
             edge.metadata = doc.metadata
             edge.order = order
-        return graph
+        return KnowledgeGraph(
+            edges=graph,
+        )
 
     def from_documents(
         self,
@@ -184,11 +207,13 @@ class GraphMaker:
     ) -> List[Edge]:
         graph: List[Edge] = []
         for index, doc in enumerate(docs):
-            ## order defines the chronology or the order in which the documents should in interpreted.
+            # defines the chronology / order in which the documents will be interpreted.
             order = getattr(doc, order_attribute) if order_attribute else index
             green_logger.info(f"Document: {index+1}")
             subgraph = self.from_document(doc, order)
             graph = [*graph, *subgraph]
             time.sleep(delay_s_between)
-        return graph
+        return KnowledgeGraph(
+            edges=graph,
+        )
     
