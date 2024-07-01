@@ -1,0 +1,88 @@
+{
+  "rm": {
+    "k": 5
+  },
+  "generate_prediction": {
+    "lm": null,
+    "traces": [],
+    "train": [],
+    "demos": [
+      {
+        "augmented": true,
+        "context": [
+          "Employment Benefits Legal Team:\nHandles legal issues related to employee benefits and compensation.\nProvides advice on retirement plans, health benefits, and compliance.\nManages disputes and litigation involving employee benefits.",
+          "Employment Disputes:\nHandles legal issues concerning current or former employees pursuing legal action against the company.\nCases include wrongful termination, payment-related disputes, or contractual matters.\nDoes not handle discrimination accusations.",
+          "Workplace Safety Legal Team:\nHandles legal matters related to workplace safety and health regulations.\nProvides advice on compliance with workplace safety standards.\nManages disputes and litigation involving workplace safety issues.",
+          "Workplace Investigations Legal Team:\nHandles legal matters related to workplace investigations and misconduct.\nProvides advice on compliance with workplace investigation standards.\nManages disputes and litigation involving workplace investigations.",
+          "Employment Litigation Team:\nHandles litigation matters involving employment disputes.\nProvides legal defense and advice on employment litigation.\nWorks with HR and other departments to address employment litigation issues."
+        ],
+        "user_query": "i was terminated from my job without any given reason and need legal advice",
+        "rationale": "Context: \n[2] \u00abEmployment Disputes:\nHandles legal issues concerning current or former employees pursuing legal action against the company.\nCases include wrongful termination, payment-related disputes, or contractual matters.\nDoes not handle discrimination accusations.\u00bb\n\nUser Query: i was terminated from my job without any given reason and need legal advice\n\nReasoning: Let's think step by step in order to produce the department. We need to identify the department that handles legal issues concerning current or former employees pursuing legal action against the company, specifically for cases like wrongful termination. The Employment Disputes team is responsible for handling such matters, including wrongful termination cases.",
+        "department": "Employment Disputes"
+      },
+      {
+        "augmented": true,
+        "context": [
+          "Coverage Team:\nSpecialized attorneys providing advice on complex claims.\nAssist with policy definitions and their application.\nConduct case law research.\nReferrals are only for non-litigated matters.\nFor litigation, refer to Field Legal.",
+          "Insurance Defense Team:\nProvides defense against claims made under insurance policies.\nSpecializes in liability, property, and casualty insurance claims.\nWorks with claims adjusters and investigators.",
+          "Claims Litigation Team:\nHandles litigation matters involving insurance claims.\nProvides legal defense and advice on claims litigation.\nWorks with claims adjusters and other departments to address claims litigation issues.",
+          "Insurance Policy Drafting Team:\nHandles the drafting and review of insurance policies and contracts.\nProvides advice on policy language and coverage issues.\nWorks with underwriters and other departments to develop policy documents.",
+          "Insurance Coverage Legal Team:\nHandles legal matters related to insurance coverage and policy interpretation.\nProvides advice on coverage issues and policy language.\nManages disputes and litigation involving insurance coverage."
+        ],
+        "user_query": "i need help understanding the details of my insurance policy for a complicated claim",
+        "rationale": "produce the department. We need to identify the team that specializes in providing advice on complex claims and policy definitions. The user query indicates a need for understanding the details of an insurance policy, which involves policy interpretation and coverage issues. Based on the context provided, the Coverage Team is the most suitable department as they specialize in advising on complex claims and policy definitions.",
+        "department": "Coverage Team"
+      },
+      {
+        "augmented": true,
+        "context": [
+          "Field Legal:\nManages all litigation matters.\nHandles cases referred from the Coverage Team and other departments.\nSpecializes in defending the company in court.",
+          "Appellate Legal Team:\nHandles appeals and post-trial motions for litigation matters.\nProvides legal support for appellate briefs and oral arguments.\nWorks with trial attorneys to develop appellate strategies.",
+          "Legal Research Team:\nConducts legal research and analysis for various departments.\nProvides support for case law research and legal opinions.\nAssists with the development of legal strategies and arguments.",
+          "Alternative Energy Legal Team:\nHandles legal matters related to alternative energy and renewable resources.\nProvides advice on compliance with alternative energy regulations and standards.\nManages disputes and litigation involving alternative energy issues.",
+          "Litigation Management Team:\nManages the overall litigation process for the company.\nProvides support for case management, document review, and evidence handling.\nWorks with attorneys and paralegals to ensure effective litigation management."
+        ],
+        "user_query": "i have a legal case that requires representation in court",
+        "rationale": "produce the department. We need to identify the department that specializes in handling litigation matters and providing court representation. Based on the context provided, the Field Legal department manages all litigation matters and specializes in defending the company in court. Therefore, they would be the best fit for this user query.",
+        "department": "Field Legal"
+      },
+      {
+        "augmented": true,
+        "context": [
+          "Fraud Investigation Unit:\nInvestigates suspected insurance fraud cases.\nWorks closely with law enforcement and other agencies.\nProvides support for both internal and external fraud matters.",
+          "Insurance Fraud Prevention Team:\nInvestigates and addresses instances of insurance fraud.\nProvides support for fraud prevention and detection efforts.\nWorks with law enforcement and other agencies to combat insurance fraud.",
+          "Claims Litigation Team:\nHandles litigation matters involving insurance claims.\nProvides legal defense and advice on claims litigation.\nWorks with claims adjusters and other departments to address claims litigation issues.",
+          "Insurance Defense Team:\nProvides defense against claims made under insurance policies.\nSpecializes in liability, property, and casualty insurance claims.\nWorks with claims adjusters and investigators.",
+          "Subrogation Department:\nRecovers funds from third parties responsible for insurance claims.\nWorks with other departments to identify subrogation opportunities.\nManages legal proceedings related to subrogation."
+        ],
+        "user_query": "i suspect there is fraudulent activity involved in this insurance claim",
+        "rationale": "produce the department. We need to identify the team that specializes in investigating and addressing instances of insurance fraud. The user query specifically mentions suspicion of fraudulent activity, which aligns with the responsibilities of teams focused on fraud investigation and prevention. Given the context provided, the most relevant departments are the Fraud Investigation Unit and the Insurance Fraud Prevention Team. Both departments work closely with law enforcement and other agencies to combat insurance fraud. However, the Fraud Investigation Unit is explicitly mentioned as providing support for both internal and external fraud matters, making it the most suitable choice.",
+        "department": "Fraud Investigation Unit"
+      },
+      {
+        "user_query": "i need assistance with understanding new regulations in our industry",
+        "department": "Compliance Team",
+        "answer": "Compliance Team"
+      },
+      {
+        "user_query": "we need help with a data breach incident",
+        "department": "Data Privacy and Security Legal Team",
+        "answer": "Data Privacy and Security Legal Team"
+      },
+      {
+        "user_query": "we are facing issues related to pollution and need legal help",
+        "department": "Environmental Claims Unit",
+        "answer": "Environmental Claims Unit"
+      },
+      {
+        "user_query": "we need legal advice for a transaction involving real estate",
+        "department": "Real Estate Legal Services",
+        "answer": "Real Estate Legal Services"
+      }
+    ],
+    "signature_instructions": "Predict the best department to help with a new user query based on the context.",
+    "signature_prefix": "Department:",
+    "extended_signature_instructions": "Predict the best department to help with a new user query based on the context.",
+    "extended_signature_prefix": "Department:"
+  }
+}

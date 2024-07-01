@@ -1,0 +1,88 @@
+{
+  "rm": {
+    "k": 5
+  },
+  "generate_prediction": {
+    "lm": null,
+    "traces": [],
+    "train": [],
+    "demos": [
+      {
+        "augmented": true,
+        "context": [
+          "Employment Benefits Legal Team:\nHandles legal issues related to employee benefits and compensation.\nProvides advice on retirement plans, health benefits, and compliance.\nManages disputes and litigation involving employee benefits.",
+          "Employment Disputes:\nHandles legal issues concerning current or former employees pursuing legal action against the company.\nCases include wrongful termination, payment-related disputes, or contractual matters.\nDoes not handle discrimination accusations.",
+          "Employment Compliance Legal Team:\nEnsures compliance with employment laws and regulations.\nConducts internal audits and reviews of employment practices.\nProvides guidance on employment compliance issues.",
+          "Employment Law Compliance Team:\nEnsures compliance with employment laws and regulations.\nConducts internal audits and reviews of employment practices.\nProvides guidance on employment law compliance issues.",
+          "Employment Litigation Team:\nHandles litigation matters involving employment disputes.\nProvides legal defense and advice on employment litigation.\nWorks with HR and other departments to address employment litigation issues."
+        ],
+        "user_query": "we're facing issues with our employee benefits plan",
+        "rationale": "produce the department. We need to identify which department specializes in handling issues related to employee benefits. According to the context provided, the Employment Benefits Legal Team is specifically designed to handle legal issues related to employee benefits and compensation, including retirement plans and health benefits. They also manage disputes and litigation involving employee benefits, which aligns closely with the user's query about facing issues with their employee benefits plan.",
+        "department": "Employment Benefits Legal Team"
+      },
+      {
+        "augmented": true,
+        "context": [
+          "Workers' Compensation Legal Team:\nManages claims related to workplace injuries and illnesses.\nProvides legal advice on workers' compensation laws and settlements.\nCollaborates with HR and risk management teams.",
+          "Employment Benefits Legal Team:\nHandles legal issues related to employee benefits and compensation.\nProvides advice on retirement plans, health benefits, and compliance.\nManages disputes and litigation involving employee benefits.",
+          "Coverage Team:\nSpecialized attorneys providing advice on complex claims.\nAssist with policy definitions and their application.\nConduct case law research.\nReferrals are only for non-litigated matters.\nFor litigation, refer to Field Legal.",
+          "Claims Litigation Team:\nHandles litigation matters involving insurance claims.\nProvides legal defense and advice on claims litigation.\nWorks with claims adjusters and other departments to address claims litigation issues.",
+          "Environmental Claims Unit:\nHandles claims involving environmental damage and pollution.\nProvides expertise in environmental law and regulations.\nWorks on cleanup cost recovery and liability defense."
+        ],
+        "user_query": "i need assistance with a workers' compensation claim",
+        "rationale": "produce the department. We need to identify which department specializes in the type of legal support required by the user. The user query specifically mentions needing assistance with a workers' compensation claim. From the context provided, the Workers' Compensation Legal Team is described as managing claims related to workplace injuries and illnesses, providing legal advice on workers' compensation laws, and collaborating with HR and risk management teams. This directly aligns with the user's needs as stated in the query.",
+        "department": "Workers' Compensation Legal Team"
+      },
+      {
+        "augmented": true,
+        "context": [
+          "Subrogation Department:\nRecovers funds from third parties responsible for insurance claims.\nWorks with other departments to identify subrogation opportunities.\nManages legal proceedings related to subrogation.",
+          "Environmental Claims Unit:\nHandles claims involving environmental damage and pollution.\nProvides expertise in environmental law and regulations.\nWorks on cleanup cost recovery and liability defense.",
+          "Claims Litigation Team:\nHandles litigation matters involving insurance claims.\nProvides legal defense and advice on claims litigation.\nWorks with claims adjusters and other departments to address claims litigation issues.",
+          "International Claims Unit:\nManages claims involving international policies and incidents.\nProvides expertise in international law and cross-border disputes.\nWorks with global partners and legal teams.",
+          "Auto Claims Legal Team:\nHandles claims related to auto accidents and vehicle damage.\nProvides legal advice and defense strategies.\nWorks with claims adjusters and auto repair experts."
+        ],
+        "user_query": "how can we recover funds from another party for a claim we have already paid out",
+        "rationale": "produce the department. We need to identify which department specializes in recovering funds from third parties responsible for insurance claims. According to the context provided, the Subrogation Department is specifically designed for this purpose. It recovers funds from third parties, works with other departments to identify subrogation opportunities, and manages legal proceedings related to subrogation. This aligns perfectly with the user's need to recover funds for a claim that has already been paid out.",
+        "department": "Subrogation Department"
+      },
+      {
+        "augmented": true,
+        "context": [
+          "Data Privacy and Security Legal Team:\nEnsures compliance with data protection laws and regulations.\nManages data breach responses and investigations.\nProvides guidance on data privacy policies and practices.",
+          "Cybersecurity Legal Team:\nProvides legal support for cybersecurity incidents and breaches.\nEnsures compliance with cybersecurity regulations.\nManages legal aspects of cybersecurity policies and protocols.",
+          "Privacy and Data Protection Legal Team:\nEnsures compliance with privacy and data protection laws and regulations.\nConducts internal audits and reviews of privacy practices.\nProvides guidance on privacy and data protection issues.",
+          "Property Damage Legal Team:\nManages claims involving property damage from natural disasters, accidents, and other incidents.\nProvides legal support for damage assessments and settlements.\nCollaborates with claims adjusters and repair contractors.",
+          "Insurance Fraud Prevention Team:\nInvestigates and addresses instances of insurance fraud.\nProvides support for fraud prevention and detection efforts.\nWorks with law enforcement and other agencies to combat insurance fraud."
+        ],
+        "user_query": "we need help with a data breach incident",
+        "rationale": "produce the department. We need to identify which department specializes in handling incidents related to data breaches. From the context provided, the Data Privacy and Security Legal Team is responsible for managing data breach responses and investigations. This team ensures compliance with data protection laws and regulations, which is crucial in the event of a data breach. Therefore, this department is best suited to provide the necessary legal support and guidance for the user's query.",
+        "department": "Data Privacy and Security Legal Team"
+      },
+      {
+        "user_query": "our company is being sued for alleged discrimination",
+        "department": "Employment Disputes",
+        "answer": "Employment Disputes"
+      },
+      {
+        "user_query": "we have a dispute with a vendor regarding a contract",
+        "department": "Contractual Disputes Team",
+        "answer": "Contractual Disputes Team"
+      },
+      {
+        "user_query": "we are dealing with a challenge related to intellectual property",
+        "department": "Intellectual Property Group",
+        "answer": "Intellectual Property Group"
+      },
+      {
+        "user_query": "i have a legal case that requires representation in court",
+        "department": "Field Legal",
+        "answer": "Field Legal"
+      }
+    ],
+    "signature_instructions": "Predict the best department to help with a new user query based on the context.",
+    "signature_prefix": "Department:",
+    "extended_signature_instructions": "Predict the best department to help with a new user query based on the context.",
+    "extended_signature_prefix": "Department:"
+  }
+}

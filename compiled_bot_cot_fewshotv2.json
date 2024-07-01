@@ -1,0 +1,65 @@
+{
+  "rm": {
+    "k": 5
+  },
+  "generate_prediction": {
+    "lm": null,
+    "traces": [],
+    "train": [],
+    "demos": [
+      {
+        "augmented": true,
+        "context": [
+          "Employment Benefits Legal Team:\nHandles legal issues related to employee benefits and compensation.\nProvides advice on retirement plans, health benefits, and compliance.\nManages disputes and litigation involving employee benefits.",
+          "Employment Disputes:\nHandles legal issues concerning current or former employees pursuing legal action against the company.\nCases include wrongful termination, payment-related disputes, or contractual matters.\nDoes not handle discrimination accusations.",
+          "Employment Compliance Legal Team:\nEnsures compliance with employment laws and regulations.\nConducts internal audits and reviews of employment practices.\nProvides guidance on employment compliance issues.",
+          "Employment Law Compliance Team:\nEnsures compliance with employment laws and regulations.\nConducts internal audits and reviews of employment practices.\nProvides guidance on employment law compliance issues.",
+          "Employment Litigation Team:\nHandles litigation matters involving employment disputes.\nProvides legal defense and advice on employment litigation.\nWorks with HR and other departments to address employment litigation issues."
+        ],
+        "options": [],
+        "user_query": "we're facing issues with our employee benefits plan",
+        "rationale": "produce the output. We need to identify the department that deals specifically with employee benefits. The query mentions \"issues with our employee benefits plan,\" which suggests a need for legal advice or management related to employee benefits. \n\n1. The \"Employment Benefits Legal Team\" is explicitly mentioned as handling legal issues related to employee benefits and compensation, providing advice on retirement plans, health benefits, and compliance, and managing disputes and litigation involving employee benefits. This makes it the most relevant department for the query.\n\n2. The other departments listed (Employment Disputes, Employment Compliance Legal Team, Employment Law Compliance Team, Employment Litigation Team) do not specifically mention employee benefits as part of their responsibilities. They focus more on compliance, disputes, and litigation in a broader sense.\n\nTherefore, the best matching department for the user query is the \"Employment Benefits Legal Team.\"",
+        "output": "Employment Benefits Legal Team"
+      },
+      {
+        "user_query": "our insured product has caused injuries and we need legal assistance",
+        "department": "Product Liability Team",
+        "answer": "Product Liability Team"
+      },
+      {
+        "user_query": "we are facing issues related to pollution and need legal help",
+        "department": "Environmental Claims Unit",
+        "answer": "Environmental Claims Unit"
+      },
+      {
+        "user_query": "we are dealing with a challenge related to intellectual property",
+        "department": "Intellectual Property Group",
+        "answer": "Intellectual Property Group"
+      },
+      {
+        "user_query": "i need assistance with understanding new regulations in our industry",
+        "department": "Compliance Team",
+        "answer": "Compliance Team"
+      },
+      {
+        "user_query": "i need legal support for a case involving workplace negligence",
+        "department": "Professional Liability Group",
+        "answer": "Professional Liability Group"
+      },
+      {
+        "user_query": "i have a legal case that requires representation in court",
+        "department": "Field Legal",
+        "answer": "Field Legal"
+      },
+      {
+        "user_query": "i need assistance with a workers' compensation claim",
+        "department": "Workers' Compensation Legal Team",
+        "answer": "Workers' Compensation Legal Team"
+      }
+    ],
+    "signature_instructions": "Given a user query and available departments, predict the 10 best matching departments.",
+    "signature_prefix": "Departments:",
+    "extended_signature_instructions": "Given a user query and available departments, predict the 10 best matching departments.",
+    "extended_signature_prefix": "Departments:"
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "rm": {
+    "k": 5
+  },
+  "generate_prediction": {
+    "lm": null,
+    "traces": [],
+    "train": [],
+    "demos": [
+      {
+        "augmented": true,
+        "context": [
+          "Advertising and Marketing Legal Team:\nHandles legal matters related to advertising and marketing practices.\nProvides advice on compliance with advertising regulations and standards.\nManages disputes and litigation involving advertising and marketing issues.",
+          "Compliance Team:\nEnsures company adherence to legal standards and regulations.\nHandles internal audits and regulatory reviews.\nProvides guidance on compliance-related issues.",
+          "Corporate Compliance Legal Team:\nEnsures compliance with corporate laws and regulations.\nConducts internal audits and reviews of corporate practices.\nProvides guidance on corporate compliance issues.",
+          "Insurance Policy Compliance Team:\nEnsures compliance with insurance policy regulations and standards.\nConducts internal audits and reviews of policy practices.\nProvides guidance on insurance policy compliance issues.",
+          "Regulatory Compliance Legal Team:\nEnsures compliance with regulatory laws and regulations.\nConducts internal audits and reviews of regulatory practices.\nProvides guidance on regulatory compliance issues."
+        ],
+        "user_query": "we're dealing with an advertising compliance issue",
+        "rationale": "produce the department. We need to address a legal matter related to advertising practices, ensure compliance with advertising regulations, and manage any disputes or litigation involving advertising issues.",
+        "department": "Advertising and Marketing Legal Team"
+      },
+      {
+        "augmented": true,
+        "context": [
+          "Crisis Management Legal Team:\nProvides legal support for crisis management and response efforts.\nHandles legal issues related to crisis situations and emergencies.\nWorks with other departments to develop crisis management plans and strategies.",
+          "Crisis Response Legal Team:\nProvides legal support for crisis response and management efforts.\nHandles legal issues related to crisis situations and emergencies.\nWorks with other departments to develop crisis response plans and strategies.",
+          "Crisis Compliance Legal Team:\nEnsures compliance with crisis laws and regulations.\nConducts internal audits and reviews of crisis practices.\nProvides guidance on crisis compliance issues.",
+          "Cybersecurity Legal Team:\nProvides legal support for cybersecurity incidents and breaches.\nEnsures compliance with cybersecurity regulations.\nManages legal aspects of cybersecurity policies and protocols.",
+          "Product Development Legal Team:\nProvides legal support for product development and innovation.\nHandles legal matters related to product design, testing, and launch.\nWorks with product development teams to address legal issues."
+        ],
+        "user_query": "we're facing a crisis situation and need legal support",
+        "rationale": "produce the department. We need a team that specializes in crisis management, response, and compliance to handle the legal aspects of the situation, ensuring that all legal requirements are met and that the crisis is managed effectively.",
+        "department": "Crisis Management Legal Team"
+      },
+      {
+        "augmented": true,
+        "context": [
+          "Insurance Coverage Legal Team:\nHandles legal matters related to insurance coverage and policy interpretation.\nProvides advice on coverage issues and policy language.\nManages disputes and litigation involving insurance coverage.",
+          "Coverage Team:\nSpecialized attorneys providing advice on complex claims.\nAssist with policy definitions and their application.\nConduct case law research.\nReferrals are only for non-litigated matters.\nFor litigation, refer to Field Legal.",
+          "Contractual Disputes Team:\nResolves disputes arising from contracts with vendors, partners, and clients.\nProvides negotiation and litigation support.\nAdvises on contract drafting and risk management.",
+          "Employment Disputes:\nHandles legal issues concerning current or former employees pursuing legal action against the company.\nCases include wrongful termination, payment-related disputes, or contractual matters.\nDoes not handle discrimination accusations.",
+          "Insurance Policy Drafting Team:\nHandles the drafting and review of insurance policies and contracts.\nProvides advice on policy language and coverage issues.\nWorks with underwriters and other departments to develop policy documents."
+        ],
+        "user_query": "we need assistance with an insurance coverage dispute",
+        "rationale": "produce the department. We see that the user is dealing with a legal matter related to insurance coverage and policy interpretation. The issue involves disputes and litigation concerning insurance coverage. Given the complexity and specialized nature of insurance coverage disputes, it would be best to refer the user to a team that specifically handles such cases.",
+        "department": "Insurance Coverage Legal Team"
+      },
+      {
+        "augmented": true,
+        "context": [
+          "Labor Relations Legal Team:\nHandles legal matters related to labor relations and union activities.\nProvides advice on compliance with labor laws and regulations.\nManages disputes and litigation involving labor relations issues.",
+          "Employment Disputes:\nHandles legal issues concerning current or former employees pursuing legal action against the company.\nCases include wrongful termination, payment-related disputes, or contractual matters.\nDoes not handle discrimination accusations.",
+          "Contractual Disputes Team:\nResolves disputes arising from contracts with vendors, partners, and clients.\nProvides negotiation and litigation support.\nAdvises on contract drafting and risk management.",
+          "Alternative Dispute Resolution Team:\nProvides support for alternative dispute resolution methods.\nHandles mediation, arbitration, and other non-litigation dispute resolution processes.\nWorks with other departments to develop ADR strategies and initiatives.",
+          "Employment Litigation Team:\nHandles litigation matters involving employment disputes.\nProvides legal defense and advice on employment litigation.\nWorks with HR and other departments to address employment litigation issues."
+        ],
+        "user_query": "we need help with a labor union dispute",
+        "rationale": "produce the department. We are dealing with a legal matter related to labor relations and union activities, which involves managing disputes and potential litigation. This issue falls under the expertise of the Labor Relations Legal Team, as they specialize in providing advice on compliance with labor laws, managing disputes, and handling litigation involving labor relations issues.",
+        "department": "Labor Relations Legal Team"
+      }
+    ],
+    "signature_instructions": "Analyze the user query, taking into consideration contextual cues and historical context, to \nprogrammatically suggest the optimal department for addressing the query proficiently.",
+    "signature_prefix": "Department:",
+    "extended_signature_instructions": "Proposed Instruction: Given the context describing the responsibilities and focus areas of various legal teams, classify the user query by matching it to the most appropriate legal department. Ensure that the classification leverages both the keywords and the specific legal issue mentioned within the query.",
+    "extended_signature_prefix": "Recommended Department:"
+  }
+}

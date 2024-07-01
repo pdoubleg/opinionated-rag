@@ -1,0 +1,15 @@
+{
+  "rm": {
+    "k": 5
+  },
+  "generate_prediction": {
+    "lm": null,
+    "traces": [],
+    "train": [],
+    "demos": [],
+    "signature_instructions": "Analyze the user query, taking into consideration contextual cues and historical context, to \nprogrammatically suggest the optimal department for addressing the query proficiently.",
+    "signature_prefix": "Department:",
+    "extended_signature_instructions": "Analyze the user query, taking into consideration contextual cues and historical context, to \nprogrammatically suggest the optimal department for addressing the query proficiently.",
+    "extended_signature_prefix": "Department:"
+  }
+}

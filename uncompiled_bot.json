@@ -1,0 +1,15 @@
+{
+  "rm": {
+    "k": 5
+  },
+  "generate_prediction": {
+    "lm": null,
+    "traces": [],
+    "train": [],
+    "demos": [],
+    "signature_instructions": "Predict the best department to help with a new user query based on the context.",
+    "signature_prefix": "Department:",
+    "extended_signature_instructions": "Predict the best department to help with a new user query based on the context.",
+    "extended_signature_prefix": "Department:"
+  }
+}

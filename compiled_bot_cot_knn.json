@@ -1,0 +1,15 @@
+{
+  "rm": {
+    "k": 5
+  },
+  "generate_prediction": {
+    "lm": null,
+    "traces": [],
+    "train": [],
+    "demos": [],
+    "signature_instructions": "Given a user query and available departments, predict the 10 best matching departments.",
+    "signature_prefix": "Departments:",
+    "extended_signature_instructions": "Given a user query and available departments, predict the 10 best matching departments.",
+    "extended_signature_prefix": "Departments:"
+  }
+}
