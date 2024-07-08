@@ -1,5 +1,6 @@
 import enum
 import os
+from urllib.parse import quote
 from dotenv import load_dotenv
 from eyecite import get_citations
 from eyecite.models import CaseCitation
@@ -344,21 +345,39 @@ class CourtListenerCaseDataSource(LegalDataSource):
             cases.append(bigdict)
         return Caselist([Case(x) for x in cases])
 
-    def search(self, search_header, verbose=True):
+    def search(self, search_header: dict, verbose: bool = True, max_pages: int = 5) -> Caselist:
+        """
+        Perform a search on CourtListener API with pagination and limit on API calls.
+
+        Args:
+            search_header (dict): The search parameters.
+            verbose (bool): If True, print progress messages. Defaults to True.
+            max_pages (int): Maximum number of pages to fetch. Defaults to 5.
+
+        Returns:
+            Caselist: A list of Case objects matching the search criteria.
+        """
         current = self.request("search/", parameters=search_header)
         reslist = []
+        page_count = 0
+
         while True:
-            reslist = reslist + current["results"]
-            if current["next"]:
+            reslist.extend(current["results"])
+            page_count += 1
+
+            if current["next"] and page_count < max_pages:
                 if verbose:
-                    print("requesting: " + current["next"])
+                    print(f"Requesting page {page_count + 1}: {current['next']}")
                 current = self.request(current["next"])
             else:
+                if verbose and page_count == max_pages:
+                    print(f"Reached maximum number of pages ({max_pages}). Stopping.")
                 break
+
         return self.extract_case_searches(reslist)
     
-    def fetch_cases_by_query(self, query):
-        return self.search({"q": query})
+    def fetch_cases_by_query(self, query, max_pages = 1):
+        return self.search(search_header={"q": query, "order_by": "dateFiled desc"}, max_pages=max_pages)
 
     def fetch_cases_by_cite(self, cite):
         return self.search({"citation": cite})
@@ -382,6 +401,33 @@ class CourtListenerCaseDataSource(LegalDataSource):
     def search_oral_arguments(self, query: str):
         """Query the Oral Argument search api."""
         return self.search({"type": SEARCH_TYPES.ORAL_ARGUMENT, "q": query})
+    
+    def search_opinions(self, query: str) -> dict:
+        """
+        Search for opinions using the given query.
+
+        Args:
+            query (str): The search query string.
+
+        Returns:
+            dict: The JSON response from the API containing search results.
+        """
+        ep = f"{COURTLISTENER_BASE_URL}/search/"
+        encoded_query = quote(query)
+        encoded_order_by = quote("dateFiled desc")
+        params = {
+            "type": "o",
+            "q": encoded_query,
+            "type": "o",
+            "order_by": encoded_order_by,
+            "stat_Precedential": "on"
+        }
+        h = {"Authorization": f"Token {os.getenv('COURTLISTENER_API_KEY')}"}
+        print(query)
+        print(params)
+        response = requests.get(ep, headers=h, params=params)
+        return response
+
 
     
     def fetch_cases_cited_by(

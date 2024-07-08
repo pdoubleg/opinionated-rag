@@ -1,10 +1,13 @@
 import difflib
+import html
 import logging
+import os
 import random
 import re
 from functools import cache
 from itertools import islice
 from typing import Any, Iterable, List
+import unicodedata
 
 import nltk
 from faker import Faker
@@ -346,3 +349,68 @@ def extract_content_from_path(
         return docs[0].content
     else:
         return [d.content for d in docs]
+
+
+def clean_str(input: Any) -> str:
+    """Clean an input string by removing HTML escapes, control characters, and other unwanted characters."""
+    # If we get non-string input, just give it back
+    if not isinstance(input, str):
+        return input
+
+    result = html.unescape(input.strip())
+    # https://stackoverflow.com/questions/4324790/removing-control-characters-from-a-string-in-python
+    return re.sub(r"[\x00-\x1f\x7f-\x9f]", "", result)
+
+
+def clean_and_normalize_text_file(file_path: str) -> None:
+    """
+    Reads a text file, cleans and normalizes its content, and saves it with a '_clean' suffix.
+
+    This function performs the following operations:
+    1. Reads the content of the file using binary mode to avoid decoding errors
+    2. Removes non-ASCII characters
+    3. Normalizes Unicode characters
+    4. Encodes and decodes the text to UTF-8
+    5. Saves the cleaned text to a new file with '_clean' suffix
+
+    Args:
+        file_path (str): The path to the input text file.
+
+    Returns:
+        None
+
+    Raises:
+        FileNotFoundError: If the input file does not exist.
+        IOError: If there's an error reading or writing the file.
+    """
+    try:
+        # Read the file in binary mode to avoid decoding errors
+        with open(file_path, "rb") as file:
+            raw_content = file.read()
+
+        # Decode the content, replacing any problematic characters
+        text = raw_content.decode("utf-8", errors="replace")
+
+        # Remove non-ASCII characters
+        text = "".join(char for char in text if ord(char) < 128)
+
+        # Normalize Unicode characters
+        text = unicodedata.normalize("NFKD", text)
+
+        # Encode and decode to UTF-8
+        text = text.encode("utf-8", errors="ignore").decode("utf-8")
+
+        # Generate the output file path
+        file_name, file_extension = os.path.splitext(file_path)
+        output_file_path = f"{file_name}_clean{file_extension}"
+
+        # Write the cleaned text to the new file
+        with open(output_file_path, "w", encoding="utf-8") as file:
+            file.write(text)
+
+        print(f"Cleaned file saved as: {output_file_path}")
+
+    except FileNotFoundError:
+        print(f"Error: File not found at {file_path}")
+    except IOError as e:
+        print(f"Error reading or writing file: {e}")

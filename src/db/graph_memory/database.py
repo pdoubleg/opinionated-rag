@@ -3,7 +3,9 @@ import json
 import os
 import logging
 from contextlib import contextmanager
-from models import Node, Edge, NearestNode
+
+import openai
+from src.db.graph_memory.models import Node, Edge, NearestNode
 from typing import List, Any
 from typing import Dict as D
 import uuid
@@ -172,10 +174,17 @@ class GraphMemory:
         except duckdb.Error as e:
             logger.error(f"Error creating index: {e}")
 
-    def nearest_nodes(self, vector: List[float], limit: int) -> List[NearestNode]:
+    def nearest_nodes(self, query: str, limit: int = 5) -> List[NearestNode]:
+        
+        client = openai.OpenAI()
+        vector = client.embeddings.create(
+            input=query,
+            model="text-embedding-3-small"
+            ).data[0].embedding
+        
         if not self._validate_vector(vector):
-            logger.error("Invalid vector: Must be a list of float values.")
-            return []
+                logger.error("Invalid vector: Must be a list of float values.")
+                return []
 
         query = f"""
         SELECT id, type, properties, vector, array_distance(vector, CAST(? AS FLOAT[{self.vector_length}])) AS distance
@@ -194,31 +203,105 @@ class GraphMemory:
         except duckdb.Error as e:
             logger.error(f"Error fetching nearest neighbors: {e}")
             return []
+        
+        
+    def reachable_nodes(self, node_id: uuid.UUID) -> List[Node]:
+        """
+        Fetch all nodes reachable from the given node through any number of edges.
 
-    def connected_nodes(self, node_id: uuid.UUID) -> List[Node]:
-        query = """
-        SELECT n.id, n.type, n.properties, n.vector
-        FROM nodes n
-        WHERE n.id IN (
-                SELECT target_id FROM edges WHERE source_id = ?
-                UNION
-                SELECT source_id FROM edges WHERE target_id = ?
-            );
+        Args:
+            node_id (uuid.UUID): The ID of the starting node.
+
+        Returns:
+            List[Node]: A list of all reachable nodes.
+        """
+        query = f"""
+        WITH RECURSIVE reachable AS (
+            SELECT id, type, properties, vector
+            FROM nodes
+            WHERE id = ?
+            UNION ALL
+            SELECT n.id, n.type, n.properties, n.vector
+            FROM nodes n
+            JOIN edges e ON n.id = e.target_id
+            JOIN reachable r ON e.source_id = r.id
+        )
+        SELECT DISTINCT id, type, properties, vector
+        FROM reachable;
         """
         try:
-            logger.info(
-                f"Executing query to fetch connected nodes for node_id: {node_id}")
-            results = self.conn.execute(query, (str(node_id), str(node_id))).fetchall()
+            logger.info(f"Executing query to fetch reachable nodes for node_id: {node_id}")
+            results = self.conn.execute(query, (str(node_id),)).fetchall()
             if results:
-                connected_nodes = [Node(id=uuid.UUID(str(row[0])), type=row[1], properties=json.loads(row[2]), vector=row[3]) for row in results]
-                logger.info(f"Found {len(connected_nodes)} connected nodes.")
+                reachable_nodes = [Node(id=uuid.UUID(str(row[0])), type=row[1], properties=json.loads(row[2]), vector=row[3]) for row in results]
+                logger.info(f"Found {len(reachable_nodes)} reachable nodes.")
             else:
-                connected_nodes = []
-                logger.info("No connected nodes found.")
-            return connected_nodes
+                reachable_nodes = []
+                logger.info("No reachable nodes found.")
+            return reachable_nodes
         except duckdb.Error as e:
-            logger.error(f"Error fetching connected nodes: {e}")
+            logger.error(f"Error fetching reachable nodes: {e}")
             return []
+
+    # def connected_nodes(self, node_id: uuid.UUID) -> List[Node]:
+    #     query = """
+    #     SELECT n.id, n.type, n.properties, n.vector
+    #     FROM nodes n
+    #     WHERE n.id IN (
+    #             SELECT target_id FROM edges WHERE source_id = ?
+    #             UNION
+    #             SELECT source_id FROM edges WHERE target_id = ?
+    #         );
+    #     """
+    #     try:
+    #         logger.info(
+    #             f"Executing query to fetch connected nodes for node_id: {node_id}")
+    #         results = self.conn.execute(query, (str(node_id), str(node_id))).fetchall()
+    #         if results:
+    #             connected_nodes = [Node(id=uuid.UUID(str(row[0])), type=row[1], properties=json.loads(row[2]), vector=row[3]) for row in results]
+    #             logger.info(f"Found {len(connected_nodes)} connected nodes.")
+    #         else:
+    #             connected_nodes = []
+    #             logger.info("No connected nodes found.")
+    #         return connected_nodes
+    #     except duckdb.Error as e:
+    #         logger.error(f"Error fetching connected nodes: {e}")
+    #         return []
+        
+    # def reachable_nodes(self, node_id: uuid.UUID) -> List[Node]:
+    #     query = """
+    #     WITH RECURSIVE
+    #         walks(node, front) AS (
+    #             SELECT node, node AS front
+    #             FROM nodes
+    #             UNION
+    #             SELECT walks.node, edges.dst AS front
+    #             FROM walks, edges
+    #             WHERE walks.front = edges.src
+    #         ),
+    #         components AS (
+    #             SELECT node, MIN(front) AS component
+    #             FROM walks
+    #             GROUP BY node
+    #         )
+    #     SELECT *
+    #     FROM components
+    #     ORDER BY component, node
+    #     """
+    #     try:
+    #         logger.info(
+    #             f"Executing query to fetch reachable nodes for node_id: {node_id}")
+    #         results = self.conn.execute(query, (str(node_id), str(node_id))).fetchall()
+    #         if results:
+    #             reachable_nodes = [Node(id=uuid.UUID(str(row[0])), type=row[1], properties=json.loads(row[2]), vector=row[3]) for row in results]
+    #             logger.info(f"Found {len(reachable_nodes)} reachable nodes.")
+    #         else:
+    #             reachable_nodes = []
+    #             logger.info("No reachable nodes found.")
+    #         return reachable_nodes
+    #     except duckdb.Error as e:
+    #         logger.error(f"Error fetching reachable nodes: {e}")
+    #         return []
 
     def nodes_to_json(self) -> List[D[str, Any]]:
         try:

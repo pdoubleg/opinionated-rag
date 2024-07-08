@@ -1,0 +1,72 @@
+
+-Goal-
+Given a text document that is potentially relevant to this activity and a list of entity types, identify all entities of those types from the text and all relationships among the identified entities.
+
+-Steps-
+1. Identify all entities. For each identified entity, extract the following information:
+- entity_name: Name of the entity, capitalized
+- entity_type: One of the following types: [court, plaintiff, defendant, complaint, judgment, securities brokerage firm, investment banking branch, retail sales branch, institutional shareholder, proxy, fairness opinion, fiduciary duty, fraud, vicarious liability, principal-agent relationship, agency relationship, constructive fraud, proximate cause, summary judgment, deposition, engagement letter, fee agreement, investment banking service, acquisition candidate, merger candidate, fairness opinion fee, confidential information, pecuniary loss, physical harm, legal prohibition, intentional tort, acquisition group, hearsay, case law citation, statute]
+- entity_description: Comprehensive description of the entity's attributes and activities
+Format each entity as ("entity"{tuple_delimiter}<entity_name>{tuple_delimiter}<entity_type>{tuple_delimiter}<entity_description>
+
+2. From the entities identified in step 1, identify all pairs of (source_entity, target_entity) that are *clearly related* to each other.
+For each pair of related entities, extract the following information:
+- source_entity: name of the source entity, as identified in step 1
+- target_entity: name of the target entity, as identified in step 1
+- relationship_description: explanation as to why you think the source entity and the target entity are related to each other
+- relationship_strength: an integer score between 1 to 10, indicating strength of the relationship between the source entity and target entity
+
+Format each relationship as ("relationship"{tuple_delimiter}<source_entity>{tuple_delimiter}<target_entity>{tuple_delimiter}<relationship_description>{tuple_delimiter}<relationship_strength>)
+
+3. Return output in English as a single list of all the entities and relationships identified in steps 1 and 2. Use **{record_delimiter}** as the list delimiter.
+
+4. When finished, output {completion_delimiter}
+
+-Examples-
+######################
+
+Example 1:
+
+entity_types: [court, plaintiff, defendant, complaint, judgment, securities brokerage firm, investment banking branch, retail sales branch, institutional shareholder, proxy, fairness opinion, fiduciary duty, fraud, vicarious liability, principal-agent relationship, agency relationship, constructive fraud, proximate cause, summary judgment, deposition, engagement letter, fee agreement, investment banking service, acquisition candidate, merger candidate, fairness opinion fee, confidential information, pecuniary loss, physical harm, legal prohibition, intentional tort, acquisition group, hearsay, case law citation, statute]
+text:
+JUSTICE HARTMAN
+
+delivered the opinion of the court:
+
+Plaintiff, John Prdromos, filed a four-count first amended complaint against defendants, Everen Securities, Inc. (Everen), Principal Financial Securities, Inc. (Principal), Daniel Westrope, and Dennis Klaeser, alleging breach of fiduciary duty and fraud in connection with defendants alleged usurpation of plaintiffs proposed purchase of Home Federal Savings Bank (Home Bank). The circuit court granted summary judgment in favor of defendants on count I (breach of fiduciary duty) and counts II and IV (fraud) of the first amended complaint, from which plaintiff appeals.
+
+Principal was a securities brokerage firm that had both a retail sales and an investment banking branch. In January 1998, Principal merged with Everen. Westrope was employed by Everen as an investment banker from June 1995 until February 1998. Plaintiff was a retail brokerage client of Everen.
+
+Prior to January 1998, plaintiff wanted to acquire and take over operation of Home Bank, which plan he communicated to Steven Golber, his retail broker at Everen. Golber set up a January 1998 meeting with plaintiff and Westrope, at which plaintiff explained
+------------------------
+output:
+("entity"{tuple_delimiter}"Justice Hartman"{tuple_delimiter}"court"{tuple_delimiter}"Justice Hartman delivered the opinion of the court."){record_delimiter}
+("entity"{tuple_delimiter}"John Prdromos"{tuple_delimiter}"plaintiff"{tuple_delimiter}"John Prdromos filed a four-count first amended complaint against Everen Securities, Inc., Principal Financial Securities, Inc., Daniel Westrope, and Dennis Klaeser."){record_delimiter}
+("entity"{tuple_delimiter}"Everen Securities, Inc."{tuple_delimiter}"defendant"{tuple_delimiter}"Everen Securities, Inc. is a defendant in a case involving breach of fiduciary duty and fraud."){record_delimiter}
+("entity"{tuple_delimiter}"Principal Financial Securities, Inc."{tuple_delimiter}"defendant"{tuple_delimiter}"Principal Financial Securities, Inc. is a defendant in a case involving breach of fiduciary duty and fraud and was a securities brokerage firm with both a retail sales and an investment banking branch."){record_delimiter}
+("entity"{tuple_delimiter}"Daniel Westrope"{tuple_delimiter}"defendant"{tuple_delimiter}"Daniel Westrope is a defendant in a case involving breach of fiduciary duty and fraud and was employed by Everen as an investment banker."){record_delimiter}
+("entity"{tuple_delimiter}"Dennis Klaeser"{tuple_delimiter}"defendant"{tuple_delimiter}"Dennis Klaeser is a defendant in a case involving breach of fiduciary duty and fraud."){record_delimiter}
+("entity"{tuple_delimiter}"Home Federal Savings Bank"{tuple_delimiter}"acquisition candidate"{tuple_delimiter}"Home Federal Savings Bank was the proposed purchase target of plaintiff John Prdromos."){record_delimiter}
+("entity"{tuple_delimiter}"breach of fiduciary duty"{tuple_delimiter}"fiduciary duty"{tuple_delimiter}"Breach of fiduciary duty was alleged against the defendants by the plaintiff."){record_delimiter}
+("entity"{tuple_delimiter}"fraud"{tuple_delimiter}"fraud"{tuple_delimiter}"Fraud was alleged against the defendants by the plaintiff."){record_delimiter}
+("entity"{tuple_delimiter}"summary judgment"{tuple_delimiter}"judgment"{tuple_delimiter}"The circuit court granted summary judgment in favor of defendants on count I (breach of fiduciary duty) and counts II and IV (fraud)."){record_delimiter}
+("entity"{tuple_delimiter}"Steven Golber"{tuple_delimiter}"proxy"{tuple_delimiter}"Steven Golber, a retail broker at Everen, set up a meeting between plaintiff and Westrope."){record_delimiter}
+("relationship"{tuple_delimiter}"John Prdromos"{tuple_delimiter}"Everen Securities, Inc."{tuple_delimiter}"John Prdromos filed a complaint against Everen Securities, Inc."{tuple_delimiter}10){record_delimiter}
+("relationship"{tuple_delimiter}"John Prdromos"{tuple_delimiter}"Principal Financial Securities, Inc."{tuple_delimiter}"John Prdromos filed a complaint against Principal Financial Securities, Inc."{tuple_delimiter}10){record_delimiter}
+("relationship"{tuple_delimiter}"John Prdromos"{tuple_delimiter}"Daniel Westrope"{tuple_delimiter}"John Prdromos filed a complaint against Daniel Westrope"{tuple_delimiter}10){record_delimiter}
+("relationship"{tuple_delimiter}"John Prdromos"{tuple_delimiter}"Dennis Klaeser"{tuple_delimiter}"John Prdromos filed a complaint against Dennis Klaeser"{tuple_delimiter}10){record_delimiter}
+("relationship"{tuple_delimiter}"John Prdromos"{tuple_delimiter}"Home Federal Savings Bank"{tuple_delimiter}"John Prdromos wanted to acquire Home Federal Savings Bank"{tuple_delimiter}9){record_delimiter}
+("relationship"{tuple_delimiter}"Principal Financial Securities, Inc."{tuple_delimiter}"Everen Securities, Inc."{tuple_delimiter}"Principal Financial Securities, Inc. merged with Everen Securities, Inc."{tuple_delimiter}9){record_delimiter}
+("relationship"{tuple_delimiter}"Daniel Westrope"{tuple_delimiter}"Everen Securities, Inc."{tuple_delimiter}"Daniel Westrope was employed by Everen Securities, Inc."{tuple_delimiter}8){record_delimiter}
+("relationship"{tuple_delimiter}"Steven Golber"{tuple_delimiter}"John Prdromos"{tuple_delimiter}"Steven Golber set up a meeting between John Prdromos and Daniel Westrope"{tuple_delimiter}7){record_delimiter}
+("relationship"{tuple_delimiter}"Steven Golber"{tuple_delimiter}"Daniel Westrope"{tuple_delimiter}"Steven Golber set up a meeting for Daniel Westrope with John Prdromos"{tuple_delimiter}7){completion_delimiter}
+#############################
+
+
+
+-Real Data-
+######################
+entity_types: [court, plaintiff, defendant, complaint, judgment, securities brokerage firm, investment banking branch, retail sales branch, institutional shareholder, proxy, fairness opinion, fiduciary duty, fraud, vicarious liability, principal-agent relationship, agency relationship, constructive fraud, proximate cause, summary judgment, deposition, engagement letter, fee agreement, investment banking service, acquisition candidate, merger candidate, fairness opinion fee, confidential information, pecuniary loss, physical harm, legal prohibition, intentional tort, acquisition group, hearsay, case law citation, statute]
+text: {input_text}
+######################
+output:
