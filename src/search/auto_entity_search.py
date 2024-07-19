@@ -280,7 +280,7 @@ class MatchedEntitySearch:
         """
         client = instructor.patch(openai.OpenAI())
         return client.chat.completions.create(
-            model="gpt-3.5-turbo-16k",
+            model="gpt-4o",
             response_model=ResolvedImprovedEntities,
             messages=[
                 {

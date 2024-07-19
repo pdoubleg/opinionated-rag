@@ -7,6 +7,7 @@ from typing import Dict, List, Any, Tuple
 
 from graphrag.query.indexer_adapters import (
     read_indexer_entities,
+    read_indexer_covariates,
     read_indexer_relationships,
     read_indexer_reports,
     read_indexer_text_units,
@@ -29,7 +30,7 @@ from graphrag.query.structured_search.local_search.mixed_context import (
 
 load_dotenv()
 
-GRAPH_TIMESTAMP = "20240705-101716"
+GRAPH_TIMESTAMP = "20240714-004619"
 API_KEY = os.environ["GRAPHRAG_API_KEY"]
 DEFAULT_LLM_MODEL = "gpt-4o"
 DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
@@ -96,6 +97,7 @@ class GraphRAGManager:
         entity_embedding_table = "create_final_entities"
         relationship_table = "create_final_relationships"
         text_unit_table = "create_final_text_units"
+        covariate_table = "create_final_covariates" # src\graphrag\output\20240714-004619\artifacts\create_final_covariates.parquet
 
         # Load dataframes
         self.entity_df = pd.read_parquet(f"{self.artifacts_dir}/{entity_table}.parquet")
@@ -115,6 +117,9 @@ class GraphRAGManager:
         # Preprocess text unit dataframe
         self.text_unit_df["document_ids"] = self.text_unit_df["document_ids"].apply(
             lambda x: [str(id) for id in x]
+        )
+        self.covariate_df = pd.read_parquet(
+            f"{self.artifacts_dir}/{covariate_table}.parquet"
         )
 
     def _process_data(self) -> None:
@@ -137,10 +142,13 @@ class GraphRAGManager:
         self.reports = read_indexer_reports(
             self.report_df, self.entity_df, self.community_level
         )
+        claims = read_indexer_covariates(self.covariate_df)
+        self.covariates = {"claims": claims}
 
         print(f"Processed {len(self.entities):,} entities")
         print(f"Processed {len(self.relationships):,} relationships")
         print(f"Processed {len(self.text_units):,} text units")
+        print(f"Processed {len(self.covariates):,} claims")
         print(f"Processed {len(self.reports):,} reports")
 
     def _setup_llm(self) -> ChatOpenAI:
@@ -168,14 +176,35 @@ class GraphRAGManager:
             text_units=self.text_units,
             entities=self.entities,
             relationships=self.relationships,
+            covariates=self.covariates,
             entity_text_embeddings=self.description_embedding_store,
             embedding_vectorstore_key=EntityVectorStoreKey.TITLE,
             text_embedder=self.text_embedder,
             token_encoder=self.token_encoder,
         )
+    
 
     def _get_local_context_params(self) -> Dict[str, Any]:
-        """Return local context parameters."""
+        """
+        Return local context parameters.
+        
+        Param Notes:
+            text_unit_prop: proportion of context window dedicated to related text units
+            community_prop: proportion of context window dedicated to community reports.
+            The remaining proportion is dedicated to entities and relationships. Sum of text_unit_prop and community_prop should be <= 1
+            conversation_history_max_turns: maximum number of turns to include in the conversation history.
+            conversation_history_user_turns_only: if True, only include user queries in the conversation history.
+            top_k_mapped_entities: number of related entities to retrieve from the entity description embedding store.
+            top_k_relationships: control the number of out-of-network relationships to pull into the context window.
+            include_entity_rank: if True, include the entity rank in the entity table in the context window. Default entity rank = node degree.
+            include_relationship_weight: if True, include the relationship weight in the context window.
+            include_community_rank: if True, include the community rank in the context window.
+            return_candidate_context: if True, return a set of dataframes containing all candidate entity/relationship/covariate records that
+            could be relevant. Note that not all of these records will be included in the context window. The "in_context" column in these
+            dataframes indicates whether the record is included in the context window.
+            max_tokens: maximum number of tokens to use for the context window.
+        
+        """
         return {
             "text_unit_prop": 0.5,
             "community_prop": 0.1,

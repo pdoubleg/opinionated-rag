@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
+import re
 from typing import List, Optional
 
 from pydantic import AnyUrl, BaseModel, Field, HttpUrl, conint, constr, model_validator
@@ -315,21 +316,21 @@ class AudioResource(BaseModel):
     panel: List[str] = []
     docket: HttpUrl
     date_created: datetime
-    date_modified: datetime
-    source: Source
+    date_modified: datetime | None = None
+    source: Source | None = None
     case_name_short: str
     case_name: str
     case_name_full: Optional[str] = ""
     judges: Optional[str] = ""
-    sha1: str
-    download_url: HttpUrl
-    local_path_mp3: HttpUrl
-    local_path_original_file: str
-    filepath_ia: HttpUrl
-    duration: int
-    processing_complete: bool
+    sha1: str | None = None
+    download_url: HttpUrl | None = None
+    local_path_mp3: HttpUrl | None = None
+    local_path_original_file: str | None = None
+    filepath_ia: HttpUrl | None = None
+    duration: int | None = None
+    processing_complete: bool | None = None
     date_blocked: Optional[datetime] = None
-    blocked: bool
+    blocked: bool | None = None
     stt_status: conint(ge=0)
     stt_google_response: Optional[str] = ""
     

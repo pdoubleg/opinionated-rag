@@ -400,35 +400,36 @@ class CourtListenerCaseDataSource(LegalDataSource):
     
     def search_oral_arguments(self, query: str):
         """Query the Oral Argument search api."""
-        return self.search({"type": SEARCH_TYPES.ORAL_ARGUMENT, "q": query})
+        search_header={"q": query, "type": SEARCH_TYPES.ORAL_ARGUMENT, "order_by": "dateArgued desc"}
+        return self.request("search/", parameters=search_header)
     
-    def search_opinions(self, query: str) -> dict:
-        """
-        Search for opinions using the given query.
+    
+    # def search_opinions(self, query: str) -> dict:
+    #     """
+    #     Search for opinions using the given query.
 
-        Args:
-            query (str): The search query string.
+    #     Args:
+    #         query (str): The search query string.
 
-        Returns:
-            dict: The JSON response from the API containing search results.
-        """
-        ep = f"{COURTLISTENER_BASE_URL}/search/"
-        encoded_query = quote(query)
-        encoded_order_by = quote("dateFiled desc")
-        params = {
-            "type": "o",
-            "q": encoded_query,
-            "type": "o",
-            "order_by": encoded_order_by,
-            "stat_Precedential": "on"
-        }
-        h = {"Authorization": f"Token {os.getenv('COURTLISTENER_API_KEY')}"}
-        print(query)
-        print(params)
-        response = requests.get(ep, headers=h, params=params)
-        return response
-
-
+    #     Returns:
+    #         dict: The JSON response from the API containing search results.
+    #     """
+    #     ep = f"{COURTLISTENER_BASE_URL}/search/"
+    #     encoded_query = quote(query)
+    #     encoded_order_by = quote("dateFiled desc")
+    #     params = {
+    #         "type": "o",
+    #         "q": encoded_query,
+    #         "type": "o",
+    #         "order_by": encoded_order_by,
+    #         "stat_Precedential": "on"
+    #     }
+    #     h = {"Authorization": f"Token {os.getenv('COURTLISTENER_API_KEY')}"}
+    #     print(query)
+    #     print(params)
+    #     response = requests.get(ep, headers=h, params=params)
+    #     return response
+    
     
     def fetch_cases_cited_by(
         self, c, depth: int = 1, verbose: bool = True

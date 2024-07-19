@@ -20,10 +20,6 @@ class CAPCitation(BaseModel):
         case_ids (List[int]): A list of Case Access Project IDs for the cited case.
         type (Optional[str]): The kind of citation, e.g. "official".
     """
-    model_config = ConfigDict(
-        extra="allow",
-        arbitrary_types_allowed=True,
-    )
     cite: Union[str, List[str]]
     reporter: Optional[str] = Field(
         None,
@@ -35,7 +31,11 @@ class CAPCitation(BaseModel):
         alias="type",
     )
     case_ids: List[int] = []
-
+    
+    model_config = ConfigDict(
+        extra="allow",
+        arbitrary_types_allowed=True,
+    )
 
     @field_validator('cite', mode='before')
     def convert_cite_to_str(cls, v):
@@ -78,24 +78,24 @@ class GeneralCitation(CaseCitation):
         return super().corrected_citation()
 
 
-    
-def normalize_case_cite(cite: Union[str, CaseCitation, CAPCitation]) -> str:
-    """Normalize a citation object or string."""
-    if isinstance(cite, CAPCitation):
-        return cite.cite
-    if isinstance(cite, str):
-        possible_cites = list(get_citations(cite))
-        bad_cites = []
-        for possible in possible_cites:
-            if isinstance(possible, CaseCitation):
-                return possible.corrected_citation()
-            bad_cites.append(possible)
-        error_msg = f"Could not locate a CaseCitation in the text {cite}."
-        for bad_cite in bad_cites:
-            error_msg += (
-                f" {bad_cite} was type {bad_cite.__class__.__name__}, not CaseCitation."
-            )
+    @staticmethod
+    def normalize_case_cite(cite: Union[str, CaseCitation, CAPCitation]) -> str:
+        """Normalize a citation object or string."""
+        if isinstance(cite, CAPCitation):
+            return cite.cite
+        if isinstance(cite, str):
+            possible_cites = list(get_citations(cite))
+            bad_cites = []
+            for possible in possible_cites:
+                if isinstance(possible, CaseCitation):
+                    return possible.corrected_citation()
+                bad_cites.append(possible)
+            error_msg = f"Could not locate a CaseCitation in the text {cite}."
+            for bad_cite in bad_cites:
+                error_msg += (
+                    f" {bad_cite} was type {bad_cite.__class__.__name__}, not CaseCitation."
+                )
 
-        raise ValueError(error_msg)
-    return cite.corrected_citation()
+            raise ValueError(error_msg)
+        return cite.corrected_citation()
 

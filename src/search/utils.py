@@ -177,43 +177,55 @@ def get_nlp() -> English:
 
 def extract_entities(spacy_doc: spacy.tokens.doc.Doc, entity_types: List[str] = ["PERSON"], lowercase: bool = False) -> Set[str]:
     """
-    Extract entities of specified types from a text. Assumes that entities start with a capital letter. 
+    Extract entities of specified types from a text, matching regardless of capitalization.
     Cleans entity text by removing special characters and numbers.
 
     Args:
         spacy_doc (spacy.tokens.doc.Doc): The spaCy document to extract entities from.
         entity_types (List[str], optional): The types of entities to extract. Defaults to ["PERSON"].
-        lowercase (bool, optional): Whether to lowercase the extracted entities. Defaults to False.
+        lowercase (bool, optional): Whether to lowercase the extracted entities in the output. Defaults to False.
 
     Returns:
         Set[str]: A set of unique extracted entities.
     """
     unique_entities = set()
     for ent in spacy_doc.ents:
-        if ent.label_ in entity_types:
+        if ent.label_.upper() in [et.upper() for et in entity_types]:
             ent_clean = "".join([c for c in ent.text if c.isalpha() or c.isspace()]).strip()
             ent_clean = re.sub('[!,*)@#%(&$_?.^]', '', ent_clean).replace("\n", " ").strip()
-            if ent_clean and (not lowercase or ent_clean[0].isupper()):
+            if ent_clean:
                 if lowercase:
-                    ent_clean = ent_clean.lower()
-                unique_entities.add(ent_clean)
+                    unique_entities.add(ent_clean.lower())
+                else:
+                    unique_entities.add(ent_clean)
     return unique_entities
 
 
 def merge_similar_entities(entities: Set[str], threshold=80) -> List[str]:
-    """ Merge similar entities using fuzzy matching.
     """
-    merged_entities = []  
+    Merge similar entities using fuzzy matching.
+
+    Args:
+        entities (Set[str]): A set of entities to merge.
+        threshold (int, optional): The similarity threshold for merging. Defaults to 80.
+
+    Returns:
+        List[str]: A list of merged entities.
+    """
+    merged_entities = []
     for entity in entities:
-        found = False  
-        for idx, merged_entity in enumerate(merged_entities):  
-            if fuzz.token_set_ratio(entity, merged_entity) >= threshold:  
-                merged_entities[idx] = process.extractOne(entity, [entity, merged_entity])[0]  
-                found = True  
-                break  
-        if not found:  
-            merged_entities.append(entity)  
-    return merged_entities  
+        found = False
+        for idx, merged_entity in enumerate(merged_entities):
+            if fuzz.token_set_ratio(entity, merged_entity) >= threshold:
+                final_entity = process.extractOne(entity, [entity, merged_entity])[0]
+                print(f"Merging '{entity}' and '{merged_entity}' into '{final_entity}'")
+                merged_entities[idx] = final_entity
+                found = True
+                break
+        if not found:
+            # print(f"Adding new entity: '{entity}'")
+            merged_entities.append(entity)
+    return merged_entities
 
 
 def is_entity_present(entity_set: Set[str], token: spacy.tokens.token.Token, threshold = 80) -> Tuple[bool, str]:

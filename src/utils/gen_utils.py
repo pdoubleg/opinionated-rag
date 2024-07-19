@@ -17,6 +17,14 @@ from src.utils.logging import setup_colored_logging
 logger = setup_colored_logging(__name__)
 
 
+class dotdict(dict):
+    """dot.notation access to dictionary attributes"""
+    __getattr__ = dict.get
+    __setattr__ = dict.__setitem__
+    __delattr__ = dict.__delitem__
+
+
+
 def load_system_prompts(dir_path: str = "system_prompts") -> Dict[str, str]:
     """
     Load system prompts from text files in a directory.
