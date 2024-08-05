@@ -42,7 +42,7 @@ class MatchedEntitySearch:
         >>> search = MatchedEntitySearch(db_path="./.lancedb")
         >>> search.ingest_data(df, table_name="context", mode='overwrite')
         >>> query = "What is the capital of France?"
-        >>> search_results = search.search(query, limit=100) # will contain 'France'
+        >>> search_results = search.search(query, top_k=100) # will contain 'France'
     """
 
     def __init__(self, db_path: str, model_id: str = "dslim/bert-base-NER"):
@@ -280,7 +280,7 @@ class MatchedEntitySearch:
         """
         client = instructor.patch(openai.OpenAI())
         return client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",
             response_model=ResolvedImprovedEntities,
             messages=[
                 {
@@ -297,7 +297,7 @@ class MatchedEntitySearch:
     def search(
         self, 
         query: str, 
-        limit: int = 100, 
+        top_k: int = 100, 
         strict: bool = False, 
         verbose: bool = False,
         distinct_column: str | None = None,
@@ -307,19 +307,22 @@ class MatchedEntitySearch:
 
         Args:
             query (str): The search query.
-            limit (int, optional): The maximum number of search results to return. Defaults to 100.
+            top_k (int, optional): The maximum number of search results to return. Defaults to 100.
             strict (bool, optional): If True, performs strict (phrase) matching of entities. Defaults to False (word).
             verbose (bool, optional): If True, logs additional information. Defaults to False.
+            distinct_column (str, optional): If provided, results will be grouped by the given column
 
         Returns:
-            pd.DataFrame: A DataFrame containing the search results, sorted by match count and vector similarity.
+            pd.DataFrame: A DataFrame containing the search results, sorted by match count and vector similarity,
+                          including a column with matched entities.
         """
         ne = self.extract_named_entities([query])
         resolved_batch = [self.resolve_entities(", ".join(t)) for t in ne]
         processed_entities = [r.entities for r in resolved_batch]
+        query_entities = set(processed_entities[0].lower().split(", "))
 
         xq = self.get_embedding(query)
-        xdf = self.tbl.search(np.array(xq)).limit(limit).to_pandas()
+        xdf = self.tbl.search(np.array(xq)).limit(top_k).to_pandas()
         xdf["score"] = 1 - xdf["_distance"]
 
         res = []
@@ -327,26 +330,24 @@ class MatchedEntitySearch:
         if strict:
             for _, row in xdf.iterrows():
                 row_entities = set(row["named_entities"].lower().split(", "))
-                query_entities = set(processed_entities[0].lower().split(", "))
-                match_count = len(query_entities.intersection(row_entities))
+                matched_entities = query_entities.intersection(row_entities)
+                match_count = len(matched_entities)
                 res.append(
-                    (row["context"], row["id"], row["named_entities"], match_count)
+                    (row["context"], row["id"], row["named_entities"], match_count, ", ".join(matched_entities))
                 )
         else:
             for _, row in xdf.iterrows():
-                match_count = sum(
-                    1
-                    for i in processed_entities[0].lower().split(", ")
-                    if i in row["named_entities"].lower()
-                )
+                row_entities = row["named_entities"].lower().split(", ")
+                matched_entities = [entity for entity in query_entities if any(entity in row_entity for row_entity in row_entities)]
+                match_count = len(matched_entities)
                 res.append(
-                    (row["context"], row["id"], row["named_entities"], match_count)
+                    (row["context"], row["id"], row["named_entities"], match_count, ", ".join(matched_entities))
                 )
 
         res.sort(key=lambda x: x[3], reverse=True)
 
         df_out = pd.DataFrame(
-            res, columns=["context", "id", "named_entities", "match_count"]
+            res, columns=["context", "id", "named_entities", "match_count", "matched_entities"]
         )
         df_out = df_out.merge(xdf[["id", "score"]], on="id", how="left")
         df_out = df_out.sort_values(
@@ -360,14 +361,14 @@ class MatchedEntitySearch:
             logger.info(f"Extracted Named Entities: {processed_entities}")
 
         return df_out
-
+    
 
 # Example usage
 # entity_search = MatchedEntitySearch(db_path="./.lancedb")
 # entity_search.ingest_data(df, table_name="context", mode='overwrite')
 
 # query = "What is the capital of France?"
-# search_results = entity_search.search(query, limit=100)
+# search_results = entity_search.search(query, top_k=100)
 # 'Extracted Named Entities': [['France']]
 # Results will have 'France' in the `named_entities` column
 # Output df will be ordered by 'Count' of entity matches, then vector similarity (1 - distance)

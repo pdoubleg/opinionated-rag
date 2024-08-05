@@ -1,3 +1,4 @@
+import copy
 import difflib
 import html
 import logging
@@ -414,3 +415,18 @@ def clean_and_normalize_text_file(file_path: str) -> None:
         print(f"Error: File not found at {file_path}")
     except IOError as e:
         print(f"Error reading or writing file: {e}")
+
+
+def rescale_bbox(bbox, processor_size, image_size):
+    page_width, page_height = processor_size
+
+    img_width, img_height = image_size
+    width_scaler = img_width / page_width
+    height_scaler = img_height / page_height
+
+    new_bbox = copy.deepcopy(bbox)
+    new_bbox[0] = int(new_bbox[0] * width_scaler)
+    new_bbox[1] = int(new_bbox[1] * height_scaler)
+    new_bbox[2] = int(new_bbox[2] * width_scaler)
+    new_bbox[3] = int(new_bbox[3] * height_scaler)
+    return new_bbox

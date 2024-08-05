@@ -5,6 +5,9 @@ Purpose:
 """
 
 import base64
+from pdf2image import convert_from_path
+from io import BytesIO
+from IPython.display import display, HTML
 import json
 import sys
 from urllib.parse import urlparse
@@ -218,7 +221,7 @@ def prompt_multi_image_input(
     prompt: str,
     image_paths: List[str],
     max_tokens: int = 500,
-    model: str = "gpt-4-vision-preview",
+    model: str = "gpt-4o",
 ) -> str:
     """
     Processes a list of images using GPT-4 with vision capabilities.
@@ -433,3 +436,55 @@ def estimate_price_and_tokens(text, model="gpt-4"):
     return estimated_cost, tokens
 
 
+def convert_pdf_page_to_base64(pdf_path, page_number):
+    """
+    Converts a specific page of a PDF to a base64 encoded image.
+
+    Args:
+        pdf_path (str): Path to the PDF file.
+        page_number (int): The page number to convert (1-indexed).
+
+    Returns:
+        str: Base64 encoded string of the image.
+
+    Raises:
+        ValueError: If the page number is invalid.
+        FileNotFoundError: If the PDF file is not found.
+    """
+    try:
+        # Convert the specific page to an image
+        images = convert_from_path(pdf_path, first_page=page_number, last_page=page_number)
+        
+        if not images:
+            raise ValueError(f"Page {page_number} does not exist in the PDF.")
+        
+        # Get the first (and only) image
+        image = images[0]
+        
+        # Save the image to a bytes buffer
+        buffer = BytesIO()
+        image.save(buffer, format="PNG")
+        
+        # Encode the image as base64
+        img_str = base64.b64encode(buffer.getvalue()).decode()
+        
+        return img_str
+    
+    except FileNotFoundError:
+        raise FileNotFoundError(f"The PDF file at {pdf_path} was not found.")
+    except Exception as e:
+        raise Exception(f"An error occurred: {str(e)}")
+
+def display_pdf_page(pdf_path, page_number):
+    """
+    Displays a specific page of a PDF as an image in the notebook.
+
+    Args:
+        pdf_path (str): Path to the PDF file.
+        page_number (int): The page number to display (1-indexed).
+    """
+    try:
+        base64_image = convert_pdf_page_to_base64(pdf_path, page_number)
+        display(HTML(f'<img src="data:image/png;base64,{base64_image}" />'))
+    except Exception as e:
+        print(f"Error displaying PDF page: {str(e)}")

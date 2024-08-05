@@ -39,6 +39,28 @@ import inspect
 import tempfile
 import markdown
 
+
+def save_string_to_markdown(content: str, filename: str) -> None:
+    """
+    Save a string to a markdown file.
+
+    Args:
+        content (str): The string content to be saved.
+        filename (str): The name of the file to save the content to (including .md extension).
+
+    Returns:
+        None
+
+    Example:
+        >>> save_string_to_markdown("# Hello World\n\nThis is a markdown file.", "example.md")
+    """
+    try:
+        with open(filename, 'w', encoding='utf-8') as file:
+            file.write(content)
+        print(f"Content successfully saved to {filename}")
+    except IOError as e:
+        print(f"An error occurred while writing to the file: {e}")
+
 @functools.lru_cache(maxsize=1000)
 def download_temp_file(file_id: str, suffix: str = None):
     """
